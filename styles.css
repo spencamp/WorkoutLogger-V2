@@ -47,6 +47,13 @@ p {
   padding: 0.6rem 0.15rem 0;
 }
 
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--accent-2);
@@ -205,6 +212,11 @@ h3 {
 .small-btn {
   background: #151e2a;
   color: var(--text-main);
+}
+
+#install-app {
+  min-height: 2.2rem;
+  padding: 0 0.85rem;
 }
 
 .small-btn {
@@ -422,6 +434,11 @@ h3 {
 }
 
 @media (max-width: 560px) {
+  .header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .movement-grid,
   .value-grid,
   .stats-grid,

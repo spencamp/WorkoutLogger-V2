@@ -40,6 +40,9 @@ const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
 const logList = document.getElementById("log-list");
+const installAppButton = document.getElementById("install-app");
+
+let deferredInstallPrompt = null;
 
 function loadEntries() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -686,6 +689,42 @@ function render() {
   renderLog();
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      // Ignore registration errors in unsupported/private modes.
+    });
+  });
+}
+
+function setupInstallPrompt() {
+  if (!installAppButton) return;
+
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+  if (isStandalone) return;
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installAppButton.classList.remove("hidden");
+  });
+
+  installAppButton.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installAppButton.classList.add("hidden");
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    installAppButton.classList.add("hidden");
+  });
+}
+
 for (const tab of modeTabs) {
   tab.addEventListener("click", () => updateMode(tab.dataset.modeTab));
 }
@@ -700,4 +739,6 @@ duplicateLastButton.addEventListener("click", duplicateLastEntry);
 cancelEditButton.addEventListener("click", cancelEdit);
 undoDeleteButton.addEventListener("click", undoDelete);
 
+registerServiceWorker();
+setupInstallPrompt();
 render();

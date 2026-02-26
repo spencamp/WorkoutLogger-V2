@@ -1,0 +1,18 @@
+{
+  "name": "Workout Logger",
+  "short_name": "Workout",
+  "description": "Track workouts with time/reps, trends, and daily logs.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070b10",
+  "theme_color": "#111b29",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
