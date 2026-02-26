@@ -191,6 +191,25 @@ function resetSelectionForMode(mode) {
   state.totals[mode] = 0;
 }
 
+function movementKey(name) {
+  return normalizeMovementName(name).toLowerCase();
+}
+
+function findMatchingDayEntry(referenceEntry, excludeId = null) {
+  const targetDate = getDateKey(referenceEntry.timestamp);
+  const targetMovement = movementKey(referenceEntry.movement);
+
+  return state.entries.find((entry) => {
+    if (excludeId && entry.id === excludeId) return false;
+    return (
+      getDateKey(entry.timestamp) === targetDate &&
+      entry.mode === referenceEntry.mode &&
+      entry.movementType === referenceEntry.movementType &&
+      movementKey(entry.movement) === targetMovement
+    );
+  });
+}
+
 function queueAddedHighlight(id) {
   state.lastAddedEntryId = id;
   if (state.addedHighlightTimerId) clearTimeout(state.addedHighlightTimerId);
@@ -237,6 +256,14 @@ function saveWorkout() {
     entry.movementType = state.movementType;
     entry.mode = state.mode;
     entry.amount = amount;
+
+    const mergeTarget = findMatchingDayEntry(entry, entry.id);
+    if (mergeTarget) {
+      mergeTarget.amount += entry.amount;
+      mergeTarget.timestamp = Math.max(mergeTarget.timestamp, entry.timestamp);
+      state.entries = state.entries.filter((item) => item.id !== entry.id);
+    }
+
     state.editingEntryId = null;
   } else {
     const newEntry = {
@@ -247,8 +274,18 @@ function saveWorkout() {
       mode: state.mode,
       amount,
     };
-    state.entries.push(newEntry);
-    queueAddedHighlight(newEntry.id);
+
+    const existing = findMatchingDayEntry(newEntry);
+    if (existing) {
+      existing.amount += newEntry.amount;
+      existing.timestamp = newEntry.timestamp;
+      queueAddedHighlight(existing.id);
+    } else {
+      state.entries.push(newEntry);
+      queueAddedHighlight(newEntry.id);
+    }
+
+    state.selectedMovement = null;
   }
 
   resetSelectionForMode(state.mode);
@@ -273,13 +310,21 @@ function duplicateLastEntry() {
     timestamp: Date.now(),
   };
 
-  state.entries.push(cloned);
+  const existing = findMatchingDayEntry(cloned);
+  if (existing) {
+    existing.amount += cloned.amount;
+    existing.timestamp = cloned.timestamp;
+    queueAddedHighlight(existing.id);
+  } else {
+    state.entries.push(cloned);
+    queueAddedHighlight(cloned.id);
+  }
+
   state.mode = newest.mode;
   state.movementType = newest.movementType;
   state.selectedMovement = newest.movement;
   state.totals[newest.mode] = newest.amount;
 
-  queueAddedHighlight(cloned.id);
   persistEntries();
   render();
 }
@@ -328,8 +373,14 @@ function undoDelete() {
   if (!state.lastDeleted) return;
 
   const { entry, index } = state.lastDeleted;
-  const safeIndex = Math.max(0, Math.min(index, state.entries.length));
-  state.entries.splice(safeIndex, 0, entry);
+  const existing = findMatchingDayEntry(entry);
+  if (existing) {
+    existing.amount += entry.amount;
+    existing.timestamp = Math.max(existing.timestamp, entry.timestamp);
+  } else {
+    const safeIndex = Math.max(0, Math.min(index, state.entries.length));
+    state.entries.splice(safeIndex, 0, entry);
+  }
 
   state.lastDeleted = null;
   if (state.undoTimerId) clearTimeout(state.undoTimerId);
@@ -348,8 +399,16 @@ function quickAddSet(id) {
     timestamp: Date.now(),
   };
 
-  state.entries.push(cloned);
-  queueAddedHighlight(cloned.id);
+  const existing = findMatchingDayEntry(cloned);
+  if (existing) {
+    existing.amount += cloned.amount;
+    existing.timestamp = cloned.timestamp;
+    queueAddedHighlight(existing.id);
+  } else {
+    state.entries.push(cloned);
+    queueAddedHighlight(cloned.id);
+  }
+
   persistEntries();
   render();
 }
