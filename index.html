@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workout Logger</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <p class="eyebrow">Daily tracker</p>
+        <h1>Workout Logger</h1>
+      </header>
+
+      <section class="card">
+        <div class="tabs" id="mode-tabs">
+          <button class="tab active" data-mode-tab="time" type="button">Time</button>
+          <button class="tab" data-mode-tab="reps" type="button">Reps</button>
+        </div>
+
+        <div class="button-grid value-grid" id="value-grid"></div>
+
+        <div class="selection-row">
+          <p class="selection-label" id="selected-value">No amount selected</p>
+          <button class="ghost-btn" id="clear-value" type="button">Clear</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="tabs" id="movement-tabs">
+          <button class="tab active" data-movement-tab="stretches" type="button">
+            Stretches
+          </button>
+          <button class="tab" data-movement-tab="exercises" type="button">
+            Exercises
+          </button>
+        </div>
+        <div class="button-grid movement-grid" id="movement-grid"></div>
+      </section>
+
+      <section class="actions">
+        <button class="primary-btn" id="save-workout" type="button">Add workout</button>
+        <button class="ghost-btn hidden" id="cancel-edit" type="button">Cancel edit</button>
+      </section>
+
+      <section class="card">
+        <h2>Workout Log</h2>
+        <div id="log-list"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
