@@ -1,4 +1,10 @@
 import { WORKOUT_OPTIONS } from "./workout-options.js";
+import {
+  getDateKey,
+  normalizeMovementName,
+  findMatchingDayEntry as findMatchingDayEntryInList,
+  mergeEntryAmounts,
+} from "./entry-utils.js";
 
 const STORAGE_KEY = "workout-log-v1";
 const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
@@ -141,14 +147,6 @@ function startOfDay(dateValue) {
   return date;
 }
 
-function getDateKey(dateValue) {
-  const date = new Date(dateValue);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function parseDateKey(dateKey) {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -191,23 +189,8 @@ function resetSelectionForMode(mode) {
   state.totals[mode] = 0;
 }
 
-function movementKey(name) {
-  return normalizeMovementName(name).toLowerCase();
-}
-
 function findMatchingDayEntry(referenceEntry, excludeId = null) {
-  const targetDate = getDateKey(referenceEntry.timestamp);
-  const targetMovement = movementKey(referenceEntry.movement);
-
-  return state.entries.find((entry) => {
-    if (excludeId && entry.id === excludeId) return false;
-    return (
-      getDateKey(entry.timestamp) === targetDate &&
-      entry.mode === referenceEntry.mode &&
-      entry.movementType === referenceEntry.movementType &&
-      movementKey(entry.movement) === targetMovement
-    );
-  });
+  return findMatchingDayEntryInList(state.entries, referenceEntry, excludeId);
 }
 
 function queueAddedHighlight(id) {
@@ -259,8 +242,7 @@ function saveWorkout() {
 
     const mergeTarget = findMatchingDayEntry(entry, entry.id);
     if (mergeTarget) {
-      mergeTarget.amount += entry.amount;
-      mergeTarget.timestamp = Math.max(mergeTarget.timestamp, entry.timestamp);
+      mergeEntryAmounts(mergeTarget, entry);
       state.entries = state.entries.filter((item) => item.id !== entry.id);
     }
 
@@ -277,8 +259,7 @@ function saveWorkout() {
 
     const existing = findMatchingDayEntry(newEntry);
     if (existing) {
-      existing.amount += newEntry.amount;
-      existing.timestamp = newEntry.timestamp;
+      mergeEntryAmounts(existing, newEntry);
       queueAddedHighlight(existing.id);
     } else {
       state.entries.push(newEntry);
@@ -312,8 +293,7 @@ function duplicateLastEntry() {
 
   const existing = findMatchingDayEntry(cloned);
   if (existing) {
-    existing.amount += cloned.amount;
-    existing.timestamp = cloned.timestamp;
+    mergeEntryAmounts(existing, cloned);
     queueAddedHighlight(existing.id);
   } else {
     state.entries.push(cloned);
@@ -375,8 +355,7 @@ function undoDelete() {
   const { entry, index } = state.lastDeleted;
   const existing = findMatchingDayEntry(entry);
   if (existing) {
-    existing.amount += entry.amount;
-    existing.timestamp = Math.max(existing.timestamp, entry.timestamp);
+    mergeEntryAmounts(existing, entry);
   } else {
     const safeIndex = Math.max(0, Math.min(index, state.entries.length));
     state.entries.splice(safeIndex, 0, entry);
@@ -401,8 +380,7 @@ function quickAddSet(id) {
 
   const existing = findMatchingDayEntry(cloned);
   if (existing) {
-    existing.amount += cloned.amount;
-    existing.timestamp = cloned.timestamp;
+    mergeEntryAmounts(existing, cloned);
     queueAddedHighlight(existing.id);
   } else {
     state.entries.push(cloned);
@@ -493,10 +471,6 @@ function groupedEntries(entries) {
     groups[key].push(entry);
   }
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-}
-
-function normalizeMovementName(name) {
-  return name.trim().replace(/\\s+/g, " ");
 }
 
 function getMovementOptions(type) {
@@ -1122,23 +1096,14 @@ function setupInstallPrompt() {
 }
 
 function setupDoubleTapZoomGuard() {
-  let lastTouchEnd = 0;
-
   document.addEventListener(
-    "touchend",
+    "dblclick",
     (event) => {
-      if (event.touches.length > 0) return;
-
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (target.closest("input, textarea, select")) return;
 
-      const now = Date.now();
-      const delta = now - lastTouchEnd;
-      if (delta > 0 && delta < 300) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
+      event.preventDefault();
     },
     { passive: false }
   );

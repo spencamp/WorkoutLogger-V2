@@ -1,4 +1,4 @@
-const CACHE_NAME = "workout-logger-v1";
+const CACHE_NAME = "workout-logger-v2";
 const APP_SHELL_FILES = [
   "./",
   "./index.html",
@@ -8,10 +8,14 @@ const APP_SHELL_FILES = [
   "./manifest.webmanifest",
   "./icons/icon.svg",
 ];
+const NETWORK_FIRST_DESTINATIONS = new Set(["document", "script", "style", "manifest"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_FILES)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL_FILES))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -33,20 +37,45 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match("./index.html"))
-    );
+    event.respondWith(networkFirst(event.request, "./index.html"));
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
-        return response;
-      });
-    })
-  );
+  if (NETWORK_FIRST_DESTINATIONS.has(event.request.destination)) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  event.respondWith(cacheFirst(event.request));
 });
+
+async function networkFirst(request, fallbackUrl = null) {
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (fallbackUrl) {
+      const fallback = await caches.match(fallbackUrl);
+      if (fallback) return fallback;
+    }
+    return Response.error();
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
