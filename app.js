@@ -1062,6 +1062,29 @@ function setupInstallPrompt() {
   });
 }
 
+function setupDoubleTapZoomGuard() {
+  let lastTouchEnd = 0;
+
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      if (event.touches.length > 0) return;
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("input, textarea, select")) return;
+
+      const now = Date.now();
+      const delta = now - lastTouchEnd;
+      if (delta > 0 && delta < 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false }
+  );
+}
+
 for (const tab of modeTabs) {
   tab.addEventListener("click", () => updateMode(tab.dataset.modeTab));
 }
@@ -1114,4 +1137,5 @@ window.addEventListener("resize", renderMobilePanels);
 
 registerServiceWorker();
 setupInstallPrompt();
+setupDoubleTapZoomGuard();
 render();
