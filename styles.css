@@ -628,6 +628,18 @@ h3 {
   font-size: 0.78rem;
 }
 
+.composer-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+#clear-sticky {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+}
+
 .quick-chip-row {
   margin-top: 0.38rem;
   display: flex;

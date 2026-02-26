@@ -50,6 +50,7 @@ const summaryDate = document.getElementById("summary-date");
 const summaryStreak = document.getElementById("summary-streak");
 const summaryGrid = document.getElementById("summary-grid");
 const composerSummary = document.getElementById("composer-summary");
+const clearStickyButton = document.getElementById("clear-sticky");
 const quickRepeatButton = document.getElementById("quick-repeat");
 const quickAddButtons = document.querySelectorAll("[data-quick-mode][data-quick-value]");
 const panelButtons = document.querySelectorAll("[data-mobile-view]");
@@ -252,7 +253,6 @@ function saveWorkout() {
 
   resetSelectionForMode(state.mode);
   persistEntries();
-  if (isMobileLayout()) state.mobileView = "log";
   render();
 }
 
@@ -588,6 +588,7 @@ function renderComposerState() {
   cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
   duplicateLastButton.disabled = state.entries.length === 0;
   quickRepeatButton.disabled = state.entries.length === 0;
+  clearStickyButton.disabled = amount <= 0 && !state.selectedMovement;
 }
 
 function renderUndoBar() {
@@ -1093,6 +1094,10 @@ for (const button of quickAddButtons) {
 }
 
 clearValueButton.addEventListener("click", clearCurrentTotal);
+clearStickyButton.addEventListener("click", () => {
+  state.selectedMovement = null;
+  clearCurrentTotal();
+});
 saveWorkoutButton.addEventListener("click", saveWorkout);
 duplicateLastButton.addEventListener("click", duplicateLastEntry);
 quickRepeatButton.addEventListener("click", duplicateLastEntry);
