@@ -227,6 +227,23 @@ function clearCurrentTotal() {
   render();
 }
 
+function hasDraftSelection() {
+  return (
+    state.totals.time > 0 ||
+    state.totals.reps > 0 ||
+    Boolean(state.selectedMovement) ||
+    Boolean(state.editingEntryId)
+  );
+}
+
+function clearDraftSelection() {
+  state.totals.time = 0;
+  state.totals.reps = 0;
+  state.selectedMovement = null;
+  state.editingEntryId = null;
+  render();
+}
+
 function saveWorkout() {
   const amount = getCurrentAmount();
   if (!state.selectedMovement || amount <= 0) return;
@@ -621,7 +638,7 @@ function renderComposerState() {
   cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
   duplicateLastButton.disabled = state.entries.length === 0;
   quickRepeatButton.disabled = state.entries.length === 0;
-  clearStickyButton.disabled = amount <= 0 && !state.selectedMovement;
+  clearStickyButton.disabled = !hasDraftSelection();
 }
 
 function renderUndoBar() {
@@ -1141,10 +1158,7 @@ for (const button of quickAddButtons) {
 }
 
 clearValueButton.addEventListener("click", clearCurrentTotal);
-clearStickyButton.addEventListener("click", () => {
-  state.selectedMovement = null;
-  clearCurrentTotal();
-});
+clearStickyButton.addEventListener("click", clearDraftSelection);
 saveWorkoutButton.addEventListener("click", saveWorkout);
 duplicateLastButton.addEventListener("click", duplicateLastEntry);
 quickRepeatButton.addEventListener("click", duplicateLastEntry);
