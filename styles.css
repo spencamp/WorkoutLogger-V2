@@ -405,7 +405,7 @@ h3 {
   border: 1px solid #29405c;
   background: #101927;
   border-radius: 13px;
-  padding: 0.7rem;
+  padding: 0.55rem;
 }
 
 .trend-chart {
@@ -619,35 +619,40 @@ h3 {
   bottom: calc(0.75rem + env(safe-area-inset-bottom));
   width: min(860px, calc(100% - 1rem));
   z-index: 40;
-  padding: 0.7rem;
+  padding: 0.55rem;
   backdrop-filter: blur(8px);
 }
 
 .composer-summary {
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.78rem;
 }
 
 .quick-chip-row {
-  margin-top: 0.5rem;
+  margin-top: 0.38rem;
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .quick-chip {
-  min-height: 2.4rem;
-  font-size: 0.8rem;
+  min-height: 2.12rem;
+  font-size: 0.74rem;
   border-radius: 999px;
-  padding: 0 0.75rem;
+  padding: 0 0.66rem;
   border-color: #38516f;
 }
 
 .composer-actions {
-  margin-top: 0.55rem;
+  margin-top: 0.4rem;
   display: grid;
-  grid-template-columns: 1.4fr 1fr auto;
-  gap: 0.45rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+#cancel-edit {
+  grid-column: 1 / -1;
+  min-height: 2.4rem;
 }
 
 .mobile-nav {
@@ -656,15 +661,15 @@ h3 {
   right: 0;
   bottom: 0;
   z-index: 50;
-  display: none;
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.45rem;
-  padding: 0.5rem 0.7rem calc(0.5rem + env(safe-area-inset-bottom));
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem calc(0.4rem + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, rgba(7, 11, 16, 0), rgba(7, 11, 16, 0.97) 40%);
 }
 
 .mobile-nav-btn {
-  min-height: 2.9rem;
+  min-height: 2.55rem;
   border-radius: 999px;
 }
 
@@ -717,7 +722,7 @@ h3 {
 
 @media (max-width: 860px) {
   .app-shell {
-    padding-bottom: 18.2rem;
+    padding-bottom: 14.2rem;
   }
 
   .app-shell.mobile-layout .panel {
@@ -745,12 +750,8 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .mobile-nav {
-    display: grid;
-  }
-
   .mobile-composer {
-    bottom: calc(4.2rem + env(safe-area-inset-bottom));
+    bottom: calc(3.45rem + env(safe-area-inset-bottom));
   }
 
   .log-row-content {
@@ -789,7 +790,7 @@ h3 {
   }
 
   .composer-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .manage-input-row {
@@ -798,6 +799,6 @@ h3 {
 
   .primary-btn,
   .ghost-btn {
-    min-height: 3.2rem;
+    min-height: 2.95rem;
   }
 }
