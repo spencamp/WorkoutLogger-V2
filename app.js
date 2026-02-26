@@ -1,6 +1,7 @@
 import { WORKOUT_OPTIONS } from "./workout-options.js";
 
 const STORAGE_KEY = "workout-log-v1";
+const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
 const MS_DAY = 24 * 60 * 60 * 1000;
 const VALUE_OPTIONS = {
   time: [30, 60, 90, 120],
@@ -17,9 +18,14 @@ const state = {
   selectedMovement: null,
   totals: { time: 0, reps: 0 },
   entries: loadEntries(),
+  customOptions: loadCustomOptions(),
+  customTarget: "stretches",
   editingEntryId: null,
   lastDeleted: null,
   undoTimerId: null,
+  mobileView: "add",
+  lastAddedEntryId: null,
+  addedHighlightTimerId: null,
 };
 
 const modeTabs = document.querySelectorAll("[data-mode-tab]");
@@ -27,10 +33,10 @@ const movementTabs = document.querySelectorAll("[data-movement-tab]");
 const valueGrid = document.getElementById("value-grid");
 const movementGrid = document.getElementById("movement-grid");
 const selectedValueLabel = document.getElementById("selected-value");
-const clearValueButton = document.getElementById("clear-value");
 const saveWorkoutButton = document.getElementById("save-workout");
 const duplicateLastButton = document.getElementById("duplicate-last");
 const cancelEditButton = document.getElementById("cancel-edit");
+const clearValueButton = document.getElementById("clear-value");
 const undoBar = document.getElementById("undo-bar");
 const undoText = document.getElementById("undo-text");
 const undoDeleteButton = document.getElementById("undo-delete");
@@ -40,7 +46,29 @@ const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
 const logList = document.getElementById("log-list");
+const summaryDate = document.getElementById("summary-date");
+const summaryStreak = document.getElementById("summary-streak");
+const summaryGrid = document.getElementById("summary-grid");
+const composerSummary = document.getElementById("composer-summary");
+const quickRepeatButton = document.getElementById("quick-repeat");
+const quickAddButtons = document.querySelectorAll("[data-quick-mode][data-quick-value]");
+const panelButtons = document.querySelectorAll("[data-mobile-view]");
+const appShell = document.getElementById("app-shell");
+const addPanel = document.getElementById("add-panel");
+const logPanel = document.getElementById("log-panel");
+const trendsPanel = document.getElementById("trends-panel");
 const installAppButton = document.getElementById("install-app");
+const customTargetButtons = document.querySelectorAll("[data-custom-target]");
+const customMovementInput = document.getElementById("custom-movement-input");
+const addCustomMovementButton = document.getElementById("add-custom-movement");
+const customMovementMessage = document.getElementById("custom-movement-message");
+const customMovementList = document.getElementById("custom-movement-list");
+
+const panels = {
+  add: addPanel,
+  log: logPanel,
+  trends: trendsPanel,
+};
 
 let deferredInstallPrompt = null;
 
@@ -69,8 +97,34 @@ function isValidEntry(entry) {
   );
 }
 
+function loadCustomOptions() {
+  const fallback = { stretches: [], exercises: [] };
+  const raw = localStorage.getItem(CUSTOM_OPTIONS_STORAGE_KEY);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return fallback;
+
+    const stretches = Array.isArray(parsed.stretches)
+      ? parsed.stretches.filter((item) => typeof item === "string" && item.trim())
+      : [];
+    const exercises = Array.isArray(parsed.exercises)
+      ? parsed.exercises.filter((item) => typeof item === "string" && item.trim())
+      : [];
+
+    return { stretches, exercises };
+  } catch {
+    return fallback;
+  }
+}
+
 function persistEntries() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+}
+
+function persistCustomOptions() {
+  localStorage.setItem(CUSTOM_OPTIONS_STORAGE_KEY, JSON.stringify(state.customOptions));
 }
 
 function createId() {
@@ -128,6 +182,25 @@ function formatMinutes(seconds) {
   return `${rounded} min`;
 }
 
+function getCurrentAmount() {
+  return state.totals[state.mode];
+}
+
+function resetSelectionForMode(mode) {
+  state.totals[mode] = 0;
+}
+
+function queueAddedHighlight(id) {
+  state.lastAddedEntryId = id;
+  if (state.addedHighlightTimerId) clearTimeout(state.addedHighlightTimerId);
+
+  state.addedHighlightTimerId = setTimeout(() => {
+    state.lastAddedEntryId = null;
+    state.addedHighlightTimerId = null;
+    render();
+  }, 900);
+}
+
 function updateMode(mode) {
   state.mode = mode;
   render();
@@ -135,10 +208,9 @@ function updateMode(mode) {
 
 function updateMovementType(type) {
   state.movementType = type;
-  const list = WORKOUT_OPTIONS[type] || [];
-  if (!list.includes(state.selectedMovement)) {
-    state.selectedMovement = null;
-  }
+  state.customTarget = type;
+  const list = getMovementOptions(type);
+  if (!list.includes(state.selectedMovement)) state.selectedMovement = null;
   render();
 }
 
@@ -152,14 +224,6 @@ function clearCurrentTotal() {
   render();
 }
 
-function getCurrentAmount() {
-  return state.totals[state.mode];
-}
-
-function resetSelectionForMode(mode) {
-  state.totals[mode] = 0;
-}
-
 function saveWorkout() {
   const amount = getCurrentAmount();
   if (!state.selectedMovement || amount <= 0) return;
@@ -167,24 +231,28 @@ function saveWorkout() {
   if (state.editingEntryId) {
     const entry = state.entries.find((item) => item.id === state.editingEntryId);
     if (!entry) return;
+
     entry.movement = state.selectedMovement;
     entry.movementType = state.movementType;
     entry.mode = state.mode;
     entry.amount = amount;
     state.editingEntryId = null;
   } else {
-    state.entries.push({
+    const newEntry = {
       id: createId(),
       timestamp: Date.now(),
       movement: state.selectedMovement,
       movementType: state.movementType,
       mode: state.mode,
       amount,
-    });
+    };
+    state.entries.push(newEntry);
+    queueAddedHighlight(newEntry.id);
   }
 
   resetSelectionForMode(state.mode);
   persistEntries();
+  if (isMobileLayout()) state.mobileView = "log";
   render();
 }
 
@@ -199,17 +267,19 @@ function duplicateLastEntry() {
   const newest = getNewestEntry();
   if (!newest) return;
 
-  state.entries.push({
+  const cloned = {
     ...newest,
     id: createId(),
     timestamp: Date.now(),
-  });
+  };
 
+  state.entries.push(cloned);
   state.mode = newest.mode;
   state.movementType = newest.movementType;
   state.selectedMovement = newest.movement;
   state.totals[newest.mode] = newest.amount;
 
+  queueAddedHighlight(cloned.id);
   persistEntries();
   render();
 }
@@ -223,6 +293,7 @@ function editEntry(id) {
   state.movementType = entry.movementType;
   state.selectedMovement = entry.movement;
   state.totals[entry.mode] = entry.amount;
+  state.mobileView = "add";
   render();
 }
 
@@ -271,12 +342,21 @@ function quickAddSet(id) {
   const entry = state.entries.find((item) => item.id === id);
   if (!entry) return;
 
-  state.entries.push({
+  const cloned = {
     ...entry,
     id: createId(),
     timestamp: Date.now(),
-  });
+  };
+
+  state.entries.push(cloned);
+  queueAddedHighlight(cloned.id);
   persistEntries();
+  render();
+}
+
+function quickAddAmount(mode, value) {
+  if (state.mode !== mode) state.mode = mode;
+  state.totals[mode] += value;
   render();
 }
 
@@ -356,6 +436,68 @@ function groupedEntries(entries) {
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
+function normalizeMovementName(name) {
+  return name.trim().replace(/\\s+/g, " ");
+}
+
+function getMovementOptions(type) {
+  const base = WORKOUT_OPTIONS[type] || [];
+  const custom = state.customOptions[type] || [];
+  const seen = new Set();
+  const merged = [];
+
+  for (const item of [...base, ...custom]) {
+    const key = item.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
+function setCustomMessage(message) {
+  customMovementMessage.textContent = message || "";
+}
+
+function addCustomMovement() {
+  const target = state.customTarget;
+  const rawName = customMovementInput.value;
+  const movementName = normalizeMovementName(rawName);
+  if (!movementName) {
+    setCustomMessage("Type a name first.");
+    return;
+  }
+
+  const exists = getMovementOptions(target).some(
+    (item) => item.toLowerCase() === movementName.toLowerCase()
+  );
+  if (exists) {
+    setCustomMessage("That movement already exists.");
+    return;
+  }
+
+  state.customOptions[target].push(movementName);
+  persistCustomOptions();
+  customMovementInput.value = "";
+  setCustomMessage(`Added to ${target}.`);
+  render();
+}
+
+function removeCustomMovement(type, movementName) {
+  state.customOptions[type] = state.customOptions[type].filter((item) => item !== movementName);
+  if (state.selectedMovement === movementName) state.selectedMovement = null;
+  persistCustomOptions();
+  setCustomMessage("Removed.");
+  render();
+}
+
+function animateSwap(container) {
+  container.classList.remove("swap-in");
+  void container.offsetWidth;
+  container.classList.add("swap-in");
+}
+
 function renderValueButtons() {
   valueGrid.innerHTML = "";
   for (const value of VALUE_OPTIONS[state.mode]) {
@@ -366,11 +508,12 @@ function renderValueButtons() {
     button.addEventListener("click", () => addToTotal(value));
     valueGrid.appendChild(button);
   }
+  animateSwap(valueGrid);
 }
 
 function renderMovementButtons() {
   movementGrid.innerHTML = "";
-  const list = WORKOUT_OPTIONS[state.movementType] || [];
+  const list = getMovementOptions(state.movementType);
 
   for (const movement of list) {
     const button = document.createElement("button");
@@ -383,6 +526,42 @@ function renderMovementButtons() {
       render();
     });
     movementGrid.appendChild(button);
+  }
+  animateSwap(movementGrid);
+}
+
+function renderCustomManager() {
+  for (const button of customTargetButtons) {
+    button.classList.toggle("active", button.dataset.customTarget === state.customTarget);
+  }
+
+  customMovementList.innerHTML = "";
+  const target = state.customTarget;
+  const customList = state.customOptions[target] || [];
+
+  if (customList.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = `No custom ${target} yet.`;
+    customMovementList.appendChild(empty);
+    return;
+  }
+
+  for (const movementName of customList) {
+    const row = document.createElement("div");
+    row.className = "manage-item";
+
+    const name = document.createElement("p");
+    name.textContent = movementName;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "small-btn danger";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => removeCustomMovement(target, movementName));
+
+    row.append(name, remove);
+    customMovementList.appendChild(row);
   }
 }
 
@@ -400,10 +579,15 @@ function renderComposerState() {
   selectedValueLabel.textContent =
     amount > 0 ? `Selected: ${formatAmount(state.mode, amount)}` : "No amount selected";
 
+  const movementText = state.selectedMovement || "Select movement";
+  const amountText = amount > 0 ? formatAmount(state.mode, amount) : "No amount";
+  composerSummary.textContent = `${movementText} • ${amountText}`;
+
   saveWorkoutButton.disabled = amount <= 0 || !state.selectedMovement;
   saveWorkoutButton.textContent = state.editingEntryId ? "Save changes" : "Add workout";
   cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
   duplicateLastButton.disabled = state.entries.length === 0;
+  quickRepeatButton.disabled = state.entries.length === 0;
 }
 
 function renderUndoBar() {
@@ -419,6 +603,44 @@ function renderUndoBar() {
     deleted.amount
   )})`;
   undoBar.classList.remove("hidden");
+}
+
+function renderDaySummary() {
+  summaryGrid.innerHTML = "";
+
+  const todayKey = getDateKey(Date.now());
+  const todayEntries = state.entries.filter((entry) => getDateKey(entry.timestamp) === todayKey);
+  const todayTotals = summarizeEntries(todayEntries);
+  const streaks = getStreakStats();
+
+  summaryDate.textContent = new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+  summaryStreak.textContent = `${streaks.currentStreak}-day streak`;
+
+  const cards = [
+    { label: "Today min", value: formatMinutes(todayTotals.timeSeconds) },
+    { label: "Today reps", value: `${todayTotals.reps}` },
+    { label: "Sessions", value: `${todayEntries.length}` },
+    { label: "Best streak", value: `${streaks.longestStreak} days` },
+  ];
+
+  for (const cardInfo of cards) {
+    const card = document.createElement("article");
+    card.className = "summary-card";
+
+    const label = document.createElement("p");
+    label.className = "summary-label";
+    label.textContent = cardInfo.label;
+
+    const value = document.createElement("p");
+    value.className = "summary-value";
+    value.textContent = cardInfo.value;
+
+    card.append(label, value);
+    summaryGrid.appendChild(card);
+  }
 }
 
 function renderTrendStats() {
@@ -604,6 +826,75 @@ function renderStreaksAndHeatmap() {
   }
 }
 
+function setupSwipeRow(row, content, entryId) {
+  let startX = 0;
+  let startY = 0;
+  let deltaX = 0;
+  let axisLock = "";
+  let dragging = false;
+
+  row.addEventListener(
+    "touchstart",
+    (event) => {
+      if (event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      deltaX = 0;
+      axisLock = "";
+      dragging = true;
+    },
+    { passive: true }
+  );
+
+  row.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!dragging || event.touches.length !== 1) return;
+
+      const touch = event.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (!axisLock) {
+        axisLock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      if (axisLock !== "x") return;
+
+      event.preventDefault();
+      deltaX = Math.max(-120, Math.min(120, dx));
+
+      content.style.transform = `translateX(${deltaX}px)`;
+      row.classList.toggle("swipe-right-active", deltaX > 30);
+      row.classList.toggle("swipe-left-active", deltaX < -30);
+    },
+    { passive: false }
+  );
+
+  function reset() {
+    content.style.transform = "";
+    row.classList.remove("swipe-right-active", "swipe-left-active");
+  }
+
+  function onTouchEnd() {
+    if (!dragging) return;
+    dragging = false;
+
+    if (axisLock !== "x") {
+      reset();
+      return;
+    }
+
+    if (deltaX > 90) quickAddSet(entryId);
+    else if (deltaX < -90) deleteEntry(entryId);
+
+    reset();
+  }
+
+  row.addEventListener("touchend", onTouchEnd, { passive: true });
+  row.addEventListener("touchcancel", onTouchEnd, { passive: true });
+}
+
 function renderLog() {
   logList.innerHTML = "";
   const sortedEntries = [...state.entries].sort((a, b) => b.timestamp - a.timestamp);
@@ -628,6 +919,18 @@ function renderLog() {
     for (const entry of entries) {
       const row = document.createElement("div");
       row.className = "log-row";
+      if (entry.id === state.lastAddedEntryId) row.classList.add("just-added");
+
+      const swipeHintLeft = document.createElement("div");
+      swipeHintLeft.className = "swipe-hint left";
+      swipeHintLeft.textContent = "+1 set";
+
+      const swipeHintRight = document.createElement("div");
+      swipeHintRight.className = "swipe-hint right";
+      swipeHintRight.textContent = "Delete";
+
+      const content = document.createElement("div");
+      content.className = "log-row-content";
 
       const text = document.createElement("div");
       text.className = "log-text";
@@ -668,7 +971,10 @@ function renderLog() {
       deleteBtn.addEventListener("click", () => deleteEntry(entry.id));
 
       controls.append(setBtn, editBtn, deleteBtn);
-      row.append(text, value, controls);
+      content.append(text, value, controls);
+
+      row.append(swipeHintLeft, swipeHintRight, content);
+      setupSwipeRow(row, content, entry.id);
       section.appendChild(row);
     }
 
@@ -676,17 +982,47 @@ function renderLog() {
   }
 }
 
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function renderMobilePanels() {
+  const mobile = isMobileLayout();
+
+  if (!mobile) {
+    appShell.classList.remove("mobile-layout");
+    for (const panel of Object.values(panels)) {
+      panel.classList.add("active-panel");
+    }
+    for (const button of panelButtons) {
+      button.classList.toggle("active", button.dataset.mobileView === "add");
+    }
+    return;
+  }
+
+  appShell.classList.add("mobile-layout");
+  for (const [view, panel] of Object.entries(panels)) {
+    panel.classList.toggle("active-panel", state.mobileView === view);
+  }
+  for (const button of panelButtons) {
+    button.classList.toggle("active", button.dataset.mobileView === state.mobileView);
+  }
+}
+
 function render() {
   renderTabs();
   renderValueButtons();
   renderMovementButtons();
+  renderCustomManager();
   renderComposerState();
   renderUndoBar();
+  renderDaySummary();
   renderTrendStats();
   renderTrendChart();
   renderMovementTrends();
   renderStreaksAndHeatmap();
   renderLog();
+  renderMobilePanels();
 }
 
 function registerServiceWorker() {
@@ -733,11 +1069,43 @@ for (const tab of movementTabs) {
   tab.addEventListener("click", () => updateMovementType(tab.dataset.movementTab));
 }
 
+for (const button of customTargetButtons) {
+  button.addEventListener("click", () => {
+    state.customTarget = button.dataset.customTarget;
+    renderCustomManager();
+  });
+}
+
+for (const button of panelButtons) {
+  button.addEventListener("click", () => {
+    state.mobileView = button.dataset.mobileView;
+    renderMobilePanels();
+  });
+}
+
+for (const button of quickAddButtons) {
+  button.addEventListener("click", () => {
+    const mode = button.dataset.quickMode;
+    const value = Number(button.dataset.quickValue);
+    if (!mode || !Number.isFinite(value)) return;
+    quickAddAmount(mode, value);
+  });
+}
+
 clearValueButton.addEventListener("click", clearCurrentTotal);
 saveWorkoutButton.addEventListener("click", saveWorkout);
 duplicateLastButton.addEventListener("click", duplicateLastEntry);
+quickRepeatButton.addEventListener("click", duplicateLastEntry);
 cancelEditButton.addEventListener("click", cancelEdit);
 undoDeleteButton.addEventListener("click", undoDelete);
+addCustomMovementButton.addEventListener("click", addCustomMovement);
+customMovementInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addCustomMovement();
+  }
+});
+window.addEventListener("resize", renderMobilePanels);
 
 registerServiceWorker();
 setupInstallPrompt();

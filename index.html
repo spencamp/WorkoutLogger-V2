@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
+    <main class="app-shell" id="app-shell">
       <header class="app-header">
         <div class="header-row">
           <div>
@@ -21,36 +21,74 @@
         </div>
       </header>
 
-      <section class="card">
-        <div class="tabs" id="mode-tabs">
-          <button class="tab active" data-mode-tab="time" type="button">Time</button>
-          <button class="tab" data-mode-tab="reps" type="button">Reps</button>
+      <section class="card day-summary">
+        <div class="day-summary-head">
+          <div>
+            <p class="eyebrow">Today</p>
+            <h2 id="summary-date">Today</h2>
+          </div>
+          <p class="streak-pill" id="summary-streak">0-day streak</p>
         </div>
-
-        <div class="button-grid value-grid" id="value-grid"></div>
-
-        <div class="selection-row">
-          <p class="selection-label" id="selected-value">No amount selected</p>
-          <button class="ghost-btn" id="clear-value" type="button">Clear</button>
-        </div>
+        <div class="summary-grid" id="summary-grid"></div>
       </section>
 
-      <section class="card">
-        <div class="tabs" id="movement-tabs">
-          <button class="tab active" data-movement-tab="stretches" type="button">
-            Stretches
-          </button>
-          <button class="tab" data-movement-tab="exercises" type="button">
-            Exercises
-          </button>
-        </div>
-        <div class="button-grid movement-grid" id="movement-grid"></div>
-      </section>
+      <section class="panel active-panel panel-add" id="add-panel">
+        <section class="card">
+          <div class="tabs" id="mode-tabs">
+            <button class="tab active" data-mode-tab="time" type="button">Time</button>
+            <button class="tab" data-mode-tab="reps" type="button">Reps</button>
+          </div>
 
-      <section class="actions">
-        <button class="primary-btn" id="save-workout" type="button">Add workout</button>
-        <button class="ghost-btn" id="duplicate-last" type="button">Duplicate last</button>
-        <button class="ghost-btn hidden" id="cancel-edit" type="button">Cancel edit</button>
+          <div class="button-grid value-grid swap-zone" id="value-grid"></div>
+
+          <div class="selection-row">
+            <p class="selection-label" id="selected-value">No amount selected</p>
+            <button class="ghost-btn" id="clear-value" type="button">Clear</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="tabs" id="movement-tabs">
+            <button class="tab active" data-movement-tab="stretches" type="button">
+              Stretches
+            </button>
+            <button class="tab" data-movement-tab="exercises" type="button">
+              Exercises
+            </button>
+          </div>
+          <div class="button-grid movement-grid swap-zone" id="movement-grid"></div>
+        </section>
+
+        <section class="card manage-card">
+          <details id="manage-movements">
+            <summary>Manage movements</summary>
+            <p class="hint">Add your own exercises or stretches.</p>
+            <div class="manage-targets">
+              <button
+                class="small-btn manage-target active"
+                data-custom-target="stretches"
+                type="button"
+              >
+                Stretches
+              </button>
+              <button class="small-btn manage-target" data-custom-target="exercises" type="button">
+                Exercises
+              </button>
+            </div>
+            <div class="manage-input-row">
+              <input
+                class="manage-input"
+                id="custom-movement-input"
+                type="text"
+                maxlength="40"
+                placeholder="Add custom movement"
+              />
+              <button class="small-btn" id="add-custom-movement" type="button">Add</button>
+            </div>
+            <p class="hint manage-message" id="custom-movement-message"></p>
+            <div class="manage-list" id="custom-movement-list"></div>
+          </details>
+        </section>
       </section>
 
       <section class="undo-bar hidden" id="undo-bar">
@@ -58,34 +96,63 @@
         <button class="small-btn" id="undo-delete" type="button">Undo</button>
       </section>
 
-      <section class="card">
-        <h2>Workout Log</h2>
-        <div id="log-list"></div>
+      <section class="panel panel-log" id="log-panel">
+        <section class="card">
+          <h2>Workout Log</h2>
+          <p class="hint">Swipe right for +1 set, swipe left to delete.</p>
+          <div id="log-list"></div>
+        </section>
       </section>
 
-      <section class="card">
-        <h2>Trends</h2>
-        <div class="stats-grid" id="trend-stats"></div>
+      <section class="panel panel-trends" id="trends-panel">
+        <section class="card">
+          <h2>Trends</h2>
+          <div class="stats-grid" id="trend-stats"></div>
 
-        <div class="subcard">
-          <h3>Last 7 days</h3>
-          <p class="hint">Green bars = minutes, blue bars = reps</p>
-          <div class="trend-chart" id="trend-chart"></div>
-        </div>
+          <div class="subcard">
+            <h3>Last 7 days</h3>
+            <p class="hint">Green bars = minutes, blue bars = reps</p>
+            <div class="trend-chart" id="trend-chart"></div>
+          </div>
 
-        <div class="subcard">
-          <h3>Movement totals (7 days)</h3>
-          <div id="movement-trends"></div>
-        </div>
+          <div class="subcard">
+            <h3>Movement totals (7 days)</h3>
+            <div id="movement-trends"></div>
+          </div>
 
-        <div class="subcard">
-          <h3>Streaks</h3>
-          <div class="streak-grid" id="streak-grid"></div>
-          <p class="hint">Activity heatmap (last 8 weeks)</p>
-          <div class="heatmap" id="heatmap"></div>
-        </div>
+          <div class="subcard">
+            <h3>Streaks</h3>
+            <div class="streak-grid" id="streak-grid"></div>
+            <p class="hint">Activity heatmap (last 8 weeks)</p>
+            <div class="heatmap" id="heatmap"></div>
+          </div>
+        </section>
       </section>
     </main>
+
+    <section class="mobile-composer" id="mobile-composer">
+      <p class="composer-summary" id="composer-summary">Select amount + movement</p>
+      <div class="quick-chip-row">
+        <button class="quick-chip" id="quick-repeat" type="button">Repeat last</button>
+        <button class="quick-chip" data-quick-mode="time" data-quick-value="30" type="button">
+          +30s
+        </button>
+        <button class="quick-chip" data-quick-mode="reps" data-quick-value="5" type="button">
+          +5 reps
+        </button>
+      </div>
+      <div class="composer-actions">
+        <button class="primary-btn" id="save-workout" type="button">Add workout</button>
+        <button class="ghost-btn" id="duplicate-last" type="button">Duplicate last</button>
+        <button class="ghost-btn hidden" id="cancel-edit" type="button">Cancel edit</button>
+      </div>
+    </section>
+
+    <nav class="mobile-nav" id="mobile-nav" aria-label="App sections">
+      <button class="mobile-nav-btn active" data-mobile-view="add" type="button">Add</button>
+      <button class="mobile-nav-btn" data-mobile-view="log" type="button">Log</button>
+      <button class="mobile-nav-btn" data-mobile-view="trends" type="button">Trends</button>
+    </nav>
 
     <script type="module" src="./app.js"></script>
   </body>
