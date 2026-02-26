@@ -18,13 +18,6 @@ const state = {
   totals: { time: 0, reps: 0 },
   entries: loadEntries(),
   editingEntryId: null,
-  filters: {
-    search: "",
-    movementType: "all",
-    mode: "all",
-    startDate: "",
-    endDate: "",
-  },
   lastDeleted: null,
   undoTimerId: null,
 };
@@ -46,14 +39,6 @@ const trendChart = document.getElementById("trend-chart");
 const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
-const filterSearchInput = document.getElementById("filter-search");
-const filterTypeButtons = document.querySelectorAll("[data-filter-type]");
-const filterModeButtons = document.querySelectorAll("[data-filter-mode]");
-const quickRangeButtons = document.querySelectorAll("[data-quick-range]");
-const filterStartInput = document.getElementById("filter-start");
-const filterEndInput = document.getElementById("filter-end");
-const clearFiltersButton = document.getElementById("clear-filters");
-const filterSummary = document.getElementById("filter-summary");
 const logList = document.getElementById("log-list");
 
 function loadEntries() {
@@ -358,29 +343,6 @@ function getStreakStats() {
   };
 }
 
-function isFiltersActive() {
-  const { search, movementType, mode, startDate, endDate } = state.filters;
-  return Boolean(search || startDate || endDate || movementType !== "all" || mode !== "all");
-}
-
-function getFilteredEntries() {
-  const { search, movementType, mode, startDate, endDate } = state.filters;
-  const searchValue = search.toLowerCase().trim();
-
-  return state.entries
-    .filter((entry) => {
-      if (searchValue && !entry.movement.toLowerCase().includes(searchValue)) return false;
-      if (movementType !== "all" && entry.movementType !== movementType) return false;
-      if (mode !== "all" && entry.mode !== mode) return false;
-
-      const day = getDateKey(entry.timestamp);
-      if (startDate && day < startDate) return false;
-      if (endDate && day > endDate) return false;
-      return true;
-    })
-    .sort((a, b) => b.timestamp - a.timestamp);
-}
-
 function groupedEntries(entries) {
   const groups = {};
   for (const entry of entries) {
@@ -389,34 +351,6 @@ function groupedEntries(entries) {
     groups[key].push(entry);
   }
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-}
-
-function applyQuickRange(range) {
-  if (range === "all") {
-    state.filters.startDate = "";
-    state.filters.endDate = "";
-    render();
-    return;
-  }
-
-  const days = Number(range);
-  if (!Number.isFinite(days) || days < 1) return;
-
-  const today = startOfDay(Date.now());
-  const start = new Date(today);
-  start.setDate(today.getDate() - (days - 1));
-  state.filters.startDate = getDateKey(start);
-  state.filters.endDate = getDateKey(today);
-  render();
-}
-
-function clearFilters() {
-  state.filters.search = "";
-  state.filters.movementType = "all";
-  state.filters.mode = "all";
-  state.filters.startDate = "";
-  state.filters.endDate = "";
-  render();
 }
 
 function renderValueButtons() {
@@ -667,37 +601,15 @@ function renderStreaksAndHeatmap() {
   }
 }
 
-function renderFilters() {
-  filterSearchInput.value = state.filters.search;
-  filterStartInput.value = state.filters.startDate;
-  filterEndInput.value = state.filters.endDate;
-
-  for (const button of filterTypeButtons) {
-    button.classList.toggle("active", button.dataset.filterType === state.filters.movementType);
-  }
-  for (const button of filterModeButtons) {
-    button.classList.toggle("active", button.dataset.filterMode === state.filters.mode);
-  }
-
-  const filteredCount = getFilteredEntries().length;
-  if (isFiltersActive()) {
-    filterSummary.textContent = `Showing ${filteredCount} of ${state.entries.length} entries`;
-  } else {
-    filterSummary.textContent = `${state.entries.length} total entries`;
-  }
-}
-
 function renderLog() {
   logList.innerHTML = "";
-  const filtered = getFilteredEntries();
-  const groups = groupedEntries(filtered);
+  const sortedEntries = [...state.entries].sort((a, b) => b.timestamp - a.timestamp);
+  const groups = groupedEntries(sortedEntries);
 
   if (groups.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = isFiltersActive()
-      ? "No workouts match your current filters."
-      : "No workouts logged yet.";
+    empty.textContent = "No workouts logged yet.";
     logList.appendChild(empty);
     return;
   }
@@ -771,7 +683,6 @@ function render() {
   renderTrendChart();
   renderMovementTrends();
   renderStreaksAndHeatmap();
-  renderFilters();
   renderLog();
 }
 
@@ -783,44 +694,10 @@ for (const tab of movementTabs) {
   tab.addEventListener("click", () => updateMovementType(tab.dataset.movementTab));
 }
 
-for (const button of filterTypeButtons) {
-  button.addEventListener("click", () => {
-    state.filters.movementType = button.dataset.filterType;
-    render();
-  });
-}
-
-for (const button of filterModeButtons) {
-  button.addEventListener("click", () => {
-    state.filters.mode = button.dataset.filterMode;
-    render();
-  });
-}
-
-for (const button of quickRangeButtons) {
-  button.addEventListener("click", () => applyQuickRange(button.dataset.quickRange));
-}
-
-filterSearchInput.addEventListener("input", () => {
-  state.filters.search = filterSearchInput.value;
-  render();
-});
-
-filterStartInput.addEventListener("change", () => {
-  state.filters.startDate = filterStartInput.value;
-  render();
-});
-
-filterEndInput.addEventListener("change", () => {
-  state.filters.endDate = filterEndInput.value;
-  render();
-});
-
 clearValueButton.addEventListener("click", clearCurrentTotal);
 saveWorkoutButton.addEventListener("click", saveWorkout);
 duplicateLastButton.addEventListener("click", duplicateLastEntry);
 cancelEditButton.addEventListener("click", cancelEdit);
 undoDeleteButton.addEventListener("click", undoDelete);
-clearFiltersButton.addEventListener("click", clearFilters);
 
 render();

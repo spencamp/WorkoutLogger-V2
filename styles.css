@@ -172,8 +172,7 @@ h3 {
 
 .primary-btn,
 .ghost-btn,
-.small-btn,
-.text-input {
+.small-btn {
   border-radius: 11px;
   border: 1px solid #2d3a4f;
   min-height: 2.8rem;
@@ -368,51 +367,6 @@ h3 {
   background: #4be8b4;
 }
 
-.filter-label {
-  margin-bottom: 0.35rem;
-  font-size: 0.83rem;
-  color: var(--text-muted);
-  display: block;
-}
-
-.filter-block {
-  margin-top: 0.7rem;
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.filter-chip.active {
-  border-color: #48cfa0;
-  background: #1c2b33;
-  color: #cffff0;
-}
-
-.text-input {
-  width: 100%;
-  background: #131c2a;
-  color: var(--text-main);
-  font-size: 0.94rem;
-}
-
-.date-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  margin-top: 0.45rem;
-}
-
-.filter-footer {
-  margin-top: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
 .log-day + .log-day {
   margin-top: 0.95rem;
 }
@@ -471,8 +425,7 @@ h3 {
   .movement-grid,
   .value-grid,
   .stats-grid,
-  .streak-grid,
-  .date-row {
+  .streak-grid {
     grid-template-columns: 1fr;
   }
 

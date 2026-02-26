@@ -51,6 +51,11 @@
       </section>
 
       <section class="card">
+        <h2>Workout Log</h2>
+        <div id="log-list"></div>
+      </section>
+
+      <section class="card">
         <h2>Trends</h2>
         <div class="stats-grid" id="trend-stats"></div>
 
@@ -71,77 +76,6 @@
           <p class="hint">Activity heatmap (last 8 weeks)</p>
           <div class="heatmap" id="heatmap"></div>
         </div>
-      </section>
-
-      <section class="card">
-        <h2>Log filters</h2>
-
-        <label class="filter-label" for="filter-search">Search movement</label>
-        <input
-          class="text-input"
-          id="filter-search"
-          type="text"
-          placeholder="e.g. push ups"
-        />
-
-        <div class="filter-block">
-          <p class="filter-label">Type</p>
-          <div class="chip-row" id="filter-type">
-            <button class="small-btn filter-chip active" data-filter-type="all" type="button">
-              All
-            </button>
-            <button class="small-btn filter-chip" data-filter-type="stretches" type="button">
-              Stretches
-            </button>
-            <button class="small-btn filter-chip" data-filter-type="exercises" type="button">
-              Exercises
-            </button>
-          </div>
-        </div>
-
-        <div class="filter-block">
-          <p class="filter-label">Measure</p>
-          <div class="chip-row" id="filter-mode">
-            <button class="small-btn filter-chip active" data-filter-mode="all" type="button">
-              All
-            </button>
-            <button class="small-btn filter-chip" data-filter-mode="time" type="button">
-              Time
-            </button>
-            <button class="small-btn filter-chip" data-filter-mode="reps" type="button">
-              Reps
-            </button>
-          </div>
-        </div>
-
-        <div class="filter-block">
-          <p class="filter-label">Date range</p>
-          <div class="chip-row">
-            <button class="small-btn quick-range" data-quick-range="7" type="button">
-              Last 7d
-            </button>
-            <button class="small-btn quick-range" data-quick-range="30" type="button">
-              Last 30d
-            </button>
-            <button class="small-btn quick-range" data-quick-range="all" type="button">
-              All time
-            </button>
-          </div>
-          <div class="date-row">
-            <input class="text-input" id="filter-start" type="date" />
-            <input class="text-input" id="filter-end" type="date" />
-          </div>
-        </div>
-
-        <div class="filter-footer">
-          <p class="hint" id="filter-summary"></p>
-          <button class="small-btn" id="clear-filters" type="button">Clear filters</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Workout Log</h2>
-        <div id="log-list"></div>
       </section>
     </main>
 
