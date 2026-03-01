@@ -418,52 +418,143 @@ h3 {
   padding: 0.55rem;
 }
 
+.trend-stats-grid {
+  margin-top: 0.55rem;
+}
+
+.trend-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.trend-toggle {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.trend-toggle .tab {
+  min-height: 2.1rem;
+  padding: 0 0.85rem;
+}
+
 .trend-chart {
   margin-top: 0.55rem;
+  min-height: 196px;
+  border: 1px solid #243448;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(61, 226, 168, 0.04), transparent 45%),
+    #0c131e;
+  padding: 0.35rem;
+}
+
+.trend-svg {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+.trend-grid-line {
+  stroke: rgba(159, 178, 204, 0.16);
+  stroke-width: 1;
+}
+
+.trend-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-line.line-7,
+.trend-dot.line-7 {
+  stroke: #4ef0b9;
+}
+
+.trend-line.line-30,
+.trend-dot.line-30 {
+  stroke: #85e3ff;
+}
+
+.trend-dot {
+  stroke-width: 2;
+  fill: #101927;
+}
+
+.trend-legend-swatch.line-7 {
+  color: #4ef0b9;
+}
+
+.trend-legend-swatch.line-30 {
+  color: #85e3ff;
+}
+
+.trend-axis {
+  margin-top: 0.4rem;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.trend-axis-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.trend-legend {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.trend-legend-item {
+  display: inline-flex;
+  align-items: center;
   gap: 0.4rem;
 }
 
-.day-col {
+.trend-legend-swatch {
+  width: 1.35rem;
+  height: 0;
+  border-top: 3px solid currentColor;
+  border-radius: 999px;
+}
+
+.trend-comparison {
+  margin-top: 0.55rem;
   display: grid;
-  gap: 0.26rem;
-  justify-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
-.bar-stack {
-  width: 100%;
-  min-height: 76px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.2rem;
-  padding: 0.25rem;
-  border-radius: 8px;
-  background: #0d141f;
+.trend-callout {
+  border: 1px solid #2b3f56;
+  border-radius: 11px;
+  background: #111a29;
+  padding: 0.55rem;
 }
 
-.trend-bar {
-  width: min(22px, 45%);
-  border-radius: 6px 6px 2px 2px;
-}
-
-.trend-bar.time {
-  background: linear-gradient(180deg, #4ef0b9, #1f8f66);
-}
-
-.trend-bar.reps {
-  background: linear-gradient(180deg, #85e3ff, #2d8db0);
-}
-
-.day-label {
-  font-size: 0.75rem;
+.trend-callout-label {
   color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
-.day-totals {
-  font-size: 0.7rem;
-  color: #d5e4fb;
+.trend-callout-value {
+  margin-top: 0.15rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.trend-callout-meta {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .trend-row {
@@ -783,10 +874,6 @@ h3 {
   .log-controls {
     justify-content: flex-start;
   }
-
-  .day-totals {
-    display: none;
-  }
 }
 
 @media (max-width: 560px) {
@@ -798,8 +885,21 @@ h3 {
   .value-grid,
   .movement-grid,
   .stats-grid,
-  .streak-grid {
+  .streak-grid,
+  .trend-comparison {
     grid-template-columns: 1fr;
+  }
+
+  .trend-head {
+    flex-direction: column;
+  }
+
+  .trend-toggle {
+    width: 100%;
+  }
+
+  .trend-toggle .tab {
+    flex: 1;
   }
 
   .chip-btn {

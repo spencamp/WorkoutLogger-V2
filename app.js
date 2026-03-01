@@ -5,9 +5,17 @@ import {
   findMatchingDayEntry as findMatchingDayEntryInList,
   mergeEntryAmounts,
 } from "./entry-utils.js";
+import {
+  buildDailyTotals,
+  getFirstTrackedDateKey,
+  shiftDateKey,
+  calculateAdjustedAverage,
+  buildRollingAverageSeries,
+} from "./trend-utils.js";
 
 const STORAGE_KEY = "workout-log-v1";
 const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
+const TREND_BENCHMARK_STORAGE_KEY = "workout-trend-benchmarks-v1";
 const MS_DAY = 24 * 60 * 60 * 1000;
 const VALUE_OPTIONS = {
   time: [30, 60, 90, 120],
@@ -30,6 +38,8 @@ const state = {
   lastDeleted: null,
   undoTimerId: null,
   mobileView: "add",
+  trendMetric: "time",
+  trendBenchmarkSnapshot: loadTrendBenchmarkSnapshot(),
   lastAddedEntryId: null,
   addedHighlightTimerId: null,
 };
@@ -47,7 +57,10 @@ const undoBar = document.getElementById("undo-bar");
 const undoText = document.getElementById("undo-text");
 const undoDeleteButton = document.getElementById("undo-delete");
 const trendStats = document.getElementById("trend-stats");
+const trendMetricButtons = document.querySelectorAll("[data-trend-metric]");
 const trendChart = document.getElementById("trend-chart");
+const trendAxis = document.getElementById("trend-axis");
+const trendComparison = document.getElementById("trend-comparison");
 const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
@@ -126,12 +139,44 @@ function loadCustomOptions() {
   }
 }
 
+function isValidTrendBenchmarkSnapshot(snapshot) {
+  const metrics = snapshot?.metrics;
+
+  return (
+    snapshot &&
+    typeof snapshot.dateKey === "string" &&
+    typeof snapshot.baselineEndKey === "string" &&
+    metrics &&
+    Number.isFinite(metrics.time?.avg7) &&
+    Number.isFinite(metrics.time?.avg30) &&
+    Number.isFinite(metrics.reps?.avg7) &&
+    Number.isFinite(metrics.reps?.avg30)
+  );
+}
+
+function loadTrendBenchmarkSnapshot() {
+  const raw = localStorage.getItem(TREND_BENCHMARK_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    return isValidTrendBenchmarkSnapshot(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function persistEntries() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
 }
 
 function persistCustomOptions() {
   localStorage.setItem(CUSTOM_OPTIONS_STORAGE_KEY, JSON.stringify(state.customOptions));
+}
+
+function persistTrendBenchmarkSnapshot() {
+  if (!state.trendBenchmarkSnapshot) return;
+  localStorage.setItem(TREND_BENCHMARK_STORAGE_KEY, JSON.stringify(state.trendBenchmarkSnapshot));
 }
 
 function createId() {
@@ -161,10 +206,6 @@ function formatDateKey(dateKey) {
   }).format(parseDateKey(dateKey));
 }
 
-function dayLabel(dateKey) {
-  return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(parseDateKey(dateKey));
-}
-
 function formatAmount(mode, amount) {
   if (mode === "reps") return `${amount} reps`;
 
@@ -179,6 +220,38 @@ function formatMinutes(seconds) {
   const minutes = seconds / 60;
   const rounded = minutes >= 10 ? Math.round(minutes) : Number(minutes.toFixed(1));
   return `${rounded} min`;
+}
+
+function formatAverageCount(value) {
+  const rounded = value >= 100 ? Math.round(value) : Number(value.toFixed(1));
+  return `${rounded}`;
+}
+
+function formatTrendValue(metric, value) {
+  if (metric === "time") return formatMinutes(value);
+
+  const count = formatAverageCount(value);
+  return `${count} reps`;
+}
+
+function formatTrendChange(currentValue, baselineValue) {
+  if (baselineValue === 0) {
+    if (currentValue === 0) return "Flat";
+    return "Up from zero";
+  }
+
+  const change = ((currentValue - baselineValue) / baselineValue) * 100;
+  if (Math.abs(change) < 0.5) return "Flat";
+
+  const direction = change > 0 ? "Up" : "Down";
+  return `${direction} ${Math.abs(Math.round(change))}%`;
+}
+
+function formatShortDate(dateKey) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(parseDateKey(dateKey));
 }
 
 function getCurrentAmount() {
@@ -428,15 +501,108 @@ function summarizeEntries(entries) {
   return totals;
 }
 
-function getLastNDaysKeys(days) {
-  const today = startOfDay(Date.now());
-  const keys = [];
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - i);
-    keys.push(getDateKey(date));
+function getRelativeDateKey(dayOffset) {
+  return shiftDateKey(getDateKey(Date.now()), dayOffset);
+}
+
+function createTrendBenchmarkSnapshot() {
+  const valuesByDay = buildDailyTotals(state.entries);
+  const firstTrackedDateKey = getFirstTrackedDateKey(state.entries);
+  const baselineEndKey = getRelativeDateKey(-1);
+
+  return {
+    dateKey: getRelativeDateKey(0),
+    baselineEndKey,
+    metrics: {
+      time: {
+        avg7: calculateAdjustedAverage({
+          endDateKey: baselineEndKey,
+          valuesByDay,
+          metric: "time",
+          windowDays: 7,
+          firstTrackedDateKey,
+        }),
+        avg30: calculateAdjustedAverage({
+          endDateKey: baselineEndKey,
+          valuesByDay,
+          metric: "time",
+          windowDays: 30,
+          firstTrackedDateKey,
+        }),
+      },
+      reps: {
+        avg7: calculateAdjustedAverage({
+          endDateKey: baselineEndKey,
+          valuesByDay,
+          metric: "reps",
+          windowDays: 7,
+          firstTrackedDateKey,
+        }),
+        avg30: calculateAdjustedAverage({
+          endDateKey: baselineEndKey,
+          valuesByDay,
+          metric: "reps",
+          windowDays: 30,
+          firstTrackedDateKey,
+        }),
+      },
+    },
+  };
+}
+
+function ensureTrendBenchmarkSnapshot() {
+  const todayKey = getRelativeDateKey(0);
+  if (state.trendBenchmarkSnapshot?.dateKey === todayKey) {
+    return state.trendBenchmarkSnapshot;
   }
-  return keys;
+
+  state.trendBenchmarkSnapshot = createTrendBenchmarkSnapshot();
+  persistTrendBenchmarkSnapshot();
+  return state.trendBenchmarkSnapshot;
+}
+
+function buildTrendViewModel(metric) {
+  const firstTrackedDateKey = getFirstTrackedDateKey(state.entries);
+  if (!firstTrackedDateKey) {
+    return {
+      metric,
+      firstTrackedDateKey: null,
+      startDateKey: null,
+      endDateKey: getRelativeDateKey(0),
+      series7: [],
+      series30: [],
+    };
+  }
+
+  const todayKey = getRelativeDateKey(0);
+  const hasTodayEntry = state.entries.some((entry) => getDateKey(entry.timestamp) === todayKey);
+  const endDateKey = hasTodayEntry ? todayKey : getRelativeDateKey(-1);
+  const minStartDateKey = getRelativeDateKey(-89);
+  const startDateKey = firstTrackedDateKey > minStartDateKey ? firstTrackedDateKey : minStartDateKey;
+  const valuesByDay = buildDailyTotals(state.entries);
+
+  return {
+    metric,
+    firstTrackedDateKey,
+    startDateKey,
+    endDateKey,
+    series7: buildRollingAverageSeries({
+      startDateKey,
+      endDateKey,
+      valuesByDay,
+      metric,
+      windowDays: 7,
+      firstTrackedDateKey,
+    }),
+    series30: buildRollingAverageSeries({
+      startDateKey,
+      endDateKey,
+      valuesByDay,
+      metric,
+      windowDays: 30,
+      firstTrackedDateKey,
+    }),
+  };
 }
 
 function getDailyCounts() {
@@ -694,16 +860,89 @@ function renderDaySummary() {
   }
 }
 
+function getTrendAxisLabelKeys(dayKeys) {
+  if (dayKeys.length === 0) return [];
+
+  const desiredLabels = Math.min(dayKeys.length, 4);
+  const indices = new Set();
+
+  for (let i = 0; i < desiredLabels; i += 1) {
+    const ratio = desiredLabels === 1 ? 0 : i / (desiredLabels - 1);
+    indices.add(Math.round(ratio * (dayKeys.length - 1)));
+  }
+
+  return [...indices]
+    .sort((a, b) => a - b)
+    .map((index) => dayKeys[index]);
+}
+
+function createSvgNode(tagName, attributes = {}) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+  for (const [key, value] of Object.entries(attributes)) {
+    node.setAttribute(key, value);
+  }
+  return node;
+}
+
+function getTrendCoordinates(series, width, height, padding, maxValue) {
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+
+  return series.map((point, index) => {
+    const x =
+      padding.left +
+      (series.length === 1 ? innerWidth / 2 : (innerWidth * index) / (series.length - 1));
+    const y = padding.top + innerHeight - (point.value / maxValue) * innerHeight;
+    return { x, y, value: point.value };
+  });
+}
+
+function renderTrendComparisonCards(metric, series7, series30) {
+  trendComparison.innerHTML = "";
+
+  const comparisons = [
+    { label: "7d average", series: series7 },
+    { label: "30d average", series: series30 },
+  ];
+
+  for (const comparison of comparisons) {
+    if (comparison.series.length === 0) continue;
+
+    const currentPoint = comparison.series[comparison.series.length - 1];
+    const baselineIndex = Math.max(0, comparison.series.length - 31);
+    const baselinePoint = comparison.series[baselineIndex];
+    const periodLabel = comparison.series.length > 30 ? "vs 30 days ago" : "since start";
+
+    const card = document.createElement("article");
+    card.className = "trend-callout";
+
+    const label = document.createElement("p");
+    label.className = "trend-callout-label";
+    label.textContent = comparison.label;
+
+    const value = document.createElement("p");
+    value.className = "trend-callout-value";
+    value.textContent = `${formatTrendChange(currentPoint.value, baselinePoint.value)} ${periodLabel}`;
+
+    const meta = document.createElement("p");
+    meta.className = "trend-callout-meta";
+    meta.textContent = `${formatTrendValue(metric, currentPoint.value)} now • ${formatShortDate(
+      baselinePoint.dateKey
+    )} baseline ${formatTrendValue(metric, baselinePoint.value)}`;
+
+    card.append(label, value, meta);
+    trendComparison.appendChild(card);
+  }
+}
+
 function renderTrendStats() {
   trendStats.innerHTML = "";
-  const last7 = summarizeEntries(getEntriesWithinDays(7));
-  const last30 = summarizeEntries(getEntriesWithinDays(30));
-
+  const snapshot = ensureTrendBenchmarkSnapshot();
   const items = [
-    { label: "7d minutes", value: formatMinutes(last7.timeSeconds) },
-    { label: "7d reps", value: `${last7.reps}` },
-    { label: "30d minutes", value: formatMinutes(last30.timeSeconds) },
-    { label: "30d reps", value: `${last30.reps}` },
+    { label: "7d min avg", value: formatTrendValue("time", snapshot.metrics.time.avg7) },
+    { label: "30d min avg", value: formatTrendValue("time", snapshot.metrics.time.avg30) },
+    { label: "7d reps avg", value: formatTrendValue("reps", snapshot.metrics.reps.avg7) },
+    { label: "30d reps avg", value: formatTrendValue("reps", snapshot.metrics.reps.avg30) },
   ];
 
   for (const item of items) {
@@ -725,55 +964,96 @@ function renderTrendStats() {
 
 function renderTrendChart() {
   trendChart.innerHTML = "";
-  const days = getLastNDaysKeys(7);
-  const totalsByDay = {};
+  trendAxis.innerHTML = "";
+  trendComparison.innerHTML = "";
 
-  for (const key of days) {
-    totalsByDay[key] = { timeSeconds: 0, reps: 0 };
+  for (const button of trendMetricButtons) {
+    button.classList.toggle("active", button.dataset.trendMetric === state.trendMetric);
   }
 
-  for (const entry of state.entries) {
-    const key = getDateKey(entry.timestamp);
-    if (!totalsByDay[key]) continue;
-    if (entry.mode === "time") totalsByDay[key].timeSeconds += entry.amount;
-    if (entry.mode === "reps") totalsByDay[key].reps += entry.amount;
+  const trendView = buildTrendViewModel(state.trendMetric);
+  const dayKeys = trendView.series7.map((point) => point.dateKey);
+
+  if (dayKeys.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Log a few workouts to see your rolling averages.";
+    trendChart.appendChild(empty);
+    trendAxis.style.gridTemplateColumns = "1fr";
+    return;
   }
 
-  const maxTime = Math.max(1, ...days.map((key) => totalsByDay[key].timeSeconds));
-  const maxReps = Math.max(1, ...days.map((key) => totalsByDay[key].reps));
+  const allValues = [...trendView.series7, ...trendView.series30].map((point) => point.value);
+  const maxValue = Math.max(1, ...allValues);
+  const width = Math.max(320, dayKeys.length * 12);
+  const height = 196;
+  const padding = { top: 14, right: 8, bottom: 14, left: 8 };
+  const innerHeight = height - padding.top - padding.bottom;
+  const svg = createSvgNode("svg", {
+    class: "trend-svg",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `${state.trendMetric === "time" ? "Minutes" : "Reps"} rolling average chart`,
+  });
 
-  for (const key of days) {
-    const dayTotals = totalsByDay[key];
-    const timeHeight = Math.round((dayTotals.timeSeconds / maxTime) * 72);
-    const repsHeight = Math.round((dayTotals.reps / maxReps) * 72);
-
-    const col = document.createElement("article");
-    col.className = "day-col";
-
-    const stack = document.createElement("div");
-    stack.className = "bar-stack";
-
-    const timeBar = document.createElement("div");
-    timeBar.className = "trend-bar time";
-    timeBar.style.height = `${dayTotals.timeSeconds > 0 ? Math.max(6, timeHeight) : 0}px`;
-
-    const repsBar = document.createElement("div");
-    repsBar.className = "trend-bar reps";
-    repsBar.style.height = `${dayTotals.reps > 0 ? Math.max(6, repsHeight) : 0}px`;
-
-    stack.append(timeBar, repsBar);
-
-    const label = document.createElement("p");
-    label.className = "day-label";
-    label.textContent = dayLabel(key);
-
-    const totals = document.createElement("p");
-    totals.className = "day-totals";
-    totals.textContent = `${Math.round(dayTotals.timeSeconds / 60)}m / ${dayTotals.reps}r`;
-
-    col.append(stack, label, totals);
-    trendChart.appendChild(col);
+  for (const ratio of [0, 1 / 3, 2 / 3, 1]) {
+    const y = padding.top + innerHeight * ratio;
+    svg.appendChild(
+      createSvgNode("line", {
+        class: "trend-grid-line",
+        x1: String(padding.left),
+        y1: String(y),
+        x2: String(width - padding.right),
+        y2: String(y),
+      })
+    );
   }
+
+  const lines = [
+    { className: "line-7", series: trendView.series7 },
+    { className: "line-30", series: trendView.series30 },
+  ];
+
+  for (const line of lines) {
+    const coordinates = getTrendCoordinates(line.series, width, height, padding, maxValue);
+    if (coordinates.length === 0) continue;
+
+    if (coordinates.length > 1) {
+      const path = coordinates
+        .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+        .join(" ");
+
+      svg.appendChild(
+        createSvgNode("path", {
+          class: `trend-line ${line.className}`,
+          d: path,
+        })
+      );
+    }
+
+    const lastPoint = coordinates[coordinates.length - 1];
+    svg.appendChild(
+      createSvgNode("circle", {
+        class: `trend-dot ${line.className}`,
+        cx: String(lastPoint.x),
+        cy: String(lastPoint.y),
+        r: "3.5",
+      })
+    );
+  }
+
+  trendChart.appendChild(svg);
+
+  const axisLabelKeys = getTrendAxisLabelKeys(dayKeys);
+  trendAxis.style.gridTemplateColumns = `repeat(${Math.max(axisLabelKeys.length, 1)}, minmax(0, 1fr))`;
+  for (const dateKey of axisLabelKeys) {
+    const label = document.createElement("span");
+    label.className = "trend-axis-label";
+    label.textContent = formatShortDate(dateKey);
+    trendAxis.appendChild(label);
+  }
+
+  renderTrendComparisonCards(state.trendMetric, trendView.series7, trendView.series30);
 }
 
 function renderMovementTrends() {
@@ -1132,6 +1412,15 @@ for (const tab of modeTabs) {
 
 for (const tab of movementTabs) {
   tab.addEventListener("click", () => updateMovementType(tab.dataset.movementTab));
+}
+
+for (const button of trendMetricButtons) {
+  button.addEventListener("click", () => {
+    const metric = button.dataset.trendMetric;
+    if (metric !== "time" && metric !== "reps") return;
+    state.trendMetric = metric;
+    renderTrendChart();
+  });
 }
 
 for (const button of customTargetButtons) {

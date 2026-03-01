@@ -107,12 +107,37 @@
       <section class="panel panel-trends" id="trends-panel">
         <section class="card">
           <h2>Trends</h2>
-          <div class="stats-grid" id="trend-stats"></div>
 
           <div class="subcard">
-            <h3>Last 7 days</h3>
-            <p class="hint">Green bars = minutes, blue bars = reps</p>
+            <h3>Today's benchmarks</h3>
+            <p class="hint">Frozen from prior days only, so you have steady numbers to beat.</p>
+            <div class="stats-grid trend-stats-grid" id="trend-stats"></div>
+          </div>
+
+          <div class="subcard">
+            <div class="trend-head">
+              <div>
+                <h3>Rolling averages</h3>
+                <p class="hint">One rest day is forgiven in each Sunday-to-Saturday week.</p>
+              </div>
+              <div class="tabs trend-toggle" aria-label="Trend metric">
+                <button class="tab active" data-trend-metric="time" type="button">Minutes</button>
+                <button class="tab" data-trend-metric="reps" type="button">Reps</button>
+              </div>
+            </div>
             <div class="trend-chart" id="trend-chart"></div>
+            <div class="trend-axis" id="trend-axis"></div>
+            <div class="trend-legend" aria-hidden="true">
+              <span class="trend-legend-item">
+                <span class="trend-legend-swatch line-7"></span>
+                7-day average
+              </span>
+              <span class="trend-legend-item">
+                <span class="trend-legend-swatch line-30"></span>
+                30-day average
+              </span>
+            </div>
+            <div class="trend-comparison" id="trend-comparison"></div>
           </div>
 
           <div class="subcard">
