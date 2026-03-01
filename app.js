@@ -1,10 +1,12 @@
 import { WORKOUT_OPTIONS } from "./workout-options.js";
 import {
   getDateKey,
+  movementKey,
   normalizeMovementName,
   findMatchingDayEntry as findMatchingDayEntryInList,
   mergeEntryAmounts,
 } from "./entry-utils.js";
+import { buildMovementHistory, selectHighlightedStaleMovements } from "./movement-utils.js";
 import {
   buildDailyTotals,
   getFirstTrackedDateKey,
@@ -15,8 +17,12 @@ import {
 
 const STORAGE_KEY = "workout-log-v1";
 const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
+const ARCHIVED_MOVEMENTS_STORAGE_KEY = "workout-archived-movements-v1";
 const TREND_BENCHMARK_STORAGE_KEY = "workout-trend-benchmarks-v1";
 const MS_DAY = 24 * 60 * 60 * 1000;
+const STALE_MOVEMENT_MIN_LOGS = 3;
+const STALE_AFTER_DAYS = 5;
+const STALE_MOVEMENT_LIMIT = 3;
 const VALUE_OPTIONS = {
   time: [30, 60, 90, 120],
   reps: [5, 10, 15, 20],
@@ -33,6 +39,7 @@ const state = {
   totals: { time: 0, reps: 0 },
   entries: loadEntries(),
   customOptions: loadCustomOptions(),
+  archivedMovements: loadArchivedMovements(),
   customTarget: "stretches",
   editingEntryId: null,
   lastDeleted: null,
@@ -139,6 +146,28 @@ function loadCustomOptions() {
   }
 }
 
+function loadArchivedMovements() {
+  const fallback = { stretches: [], exercises: [] };
+  const raw = localStorage.getItem(ARCHIVED_MOVEMENTS_STORAGE_KEY);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return fallback;
+
+    const stretches = Array.isArray(parsed.stretches)
+      ? parsed.stretches.filter((item) => typeof item === "string" && item.trim())
+      : [];
+    const exercises = Array.isArray(parsed.exercises)
+      ? parsed.exercises.filter((item) => typeof item === "string" && item.trim())
+      : [];
+
+    return { stretches, exercises };
+  } catch {
+    return fallback;
+  }
+}
+
 function isValidTrendBenchmarkSnapshot(snapshot) {
   const metrics = snapshot?.metrics;
 
@@ -172,6 +201,10 @@ function persistEntries() {
 
 function persistCustomOptions() {
   localStorage.setItem(CUSTOM_OPTIONS_STORAGE_KEY, JSON.stringify(state.customOptions));
+}
+
+function persistArchivedMovements() {
+  localStorage.setItem(ARCHIVED_MOVEMENTS_STORAGE_KEY, JSON.stringify(state.archivedMovements));
 }
 
 function persistTrendBenchmarkSnapshot() {
@@ -656,7 +689,15 @@ function groupedEntries(entries) {
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
-function getMovementOptions(type) {
+function getArchivedMovementKeys(type) {
+  return new Set((state.archivedMovements[type] || []).map((item) => movementKey(item)).filter(Boolean));
+}
+
+function isArchivedMovement(type, movementName) {
+  return getArchivedMovementKeys(type).has(movementKey(movementName));
+}
+
+function getAllMovementOptions(type) {
   const base = WORKOUT_OPTIONS[type] || [];
   const custom = state.customOptions[type] || [];
   const seen = new Set();
@@ -672,6 +713,41 @@ function getMovementOptions(type) {
   return merged;
 }
 
+function getMovementOptions(type) {
+  const archivedKeys = getArchivedMovementKeys(type);
+  return getAllMovementOptions(type).filter((item) => !archivedKeys.has(movementKey(item)));
+}
+
+function unarchiveMovementKey(type, targetKey) {
+  state.archivedMovements[type] = (state.archivedMovements[type] || []).filter(
+    (item) => movementKey(item) !== targetKey
+  );
+}
+
+function archiveMovement(type, movementName) {
+  const targetKey = movementKey(movementName);
+  if (!targetKey || isArchivedMovement(type, movementName)) return;
+
+  state.archivedMovements[type].push(movementName);
+  if (type === state.movementType && movementKey(state.selectedMovement) === targetKey) {
+    state.selectedMovement = null;
+  }
+
+  persistArchivedMovements();
+  setCustomMessage("Archived. Restore it anytime below.");
+  render();
+}
+
+function restoreMovement(type, movementName) {
+  const targetKey = movementKey(movementName);
+  if (!targetKey) return;
+
+  unarchiveMovementKey(type, targetKey);
+  persistArchivedMovements();
+  setCustomMessage("Restored.");
+  render();
+}
+
 function setCustomMessage(message) {
   customMovementMessage.textContent = message || "";
 }
@@ -685,7 +761,7 @@ function addCustomMovement() {
     return;
   }
 
-  const exists = getMovementOptions(target).some(
+  const exists = getAllMovementOptions(target).some(
     (item) => item.toLowerCase() === movementName.toLowerCase()
   );
   if (exists) {
@@ -701,9 +777,12 @@ function addCustomMovement() {
 }
 
 function removeCustomMovement(type, movementName) {
-  state.customOptions[type] = state.customOptions[type].filter((item) => item !== movementName);
-  if (state.selectedMovement === movementName) state.selectedMovement = null;
+  const targetKey = movementKey(movementName);
+  state.customOptions[type] = state.customOptions[type].filter((item) => movementKey(item) !== targetKey);
+  unarchiveMovementKey(type, targetKey);
+  if (movementKey(state.selectedMovement) === targetKey) state.selectedMovement = null;
   persistCustomOptions();
+  persistArchivedMovements();
   setCustomMessage("Removed.");
   render();
 }
@@ -730,12 +809,31 @@ function renderValueButtons() {
 function renderMovementButtons() {
   movementGrid.innerHTML = "";
   const list = getMovementOptions(state.movementType);
+  const movementHistory = buildMovementHistory(state.entries)[state.movementType];
+  const highlightedStaleKeys = selectHighlightedStaleMovements({
+    movementHistory,
+    visibleMovementNames: list,
+    todayDateKey: getDateKey(Date.now()),
+    minLogs: STALE_MOVEMENT_MIN_LOGS,
+    staleAfterDays: STALE_AFTER_DAYS,
+    maxHighlights: STALE_MOVEMENT_LIMIT,
+  });
+
+  if (list.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Everything here is archived right now. Restore one below.";
+    movementGrid.appendChild(empty);
+    animateSwap(movementGrid);
+    return;
+  }
 
   for (const movement of list) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "chip-btn movement-btn";
     if (state.selectedMovement === movement) button.classList.add("selected");
+    if (highlightedStaleKeys.has(movementKey(movement))) button.classList.add("stale");
     button.textContent = movement;
     button.addEventListener("click", () => {
       state.selectedMovement = movement;
@@ -746,6 +844,74 @@ function renderMovementButtons() {
   animateSwap(movementGrid);
 }
 
+function createManageRow({ type, movementName, isCustom, isArchived }) {
+  const row = document.createElement("div");
+  row.className = "manage-item";
+
+  const info = document.createElement("div");
+  info.className = "manage-item-main";
+
+  const name = document.createElement("p");
+  name.textContent = movementName;
+  info.appendChild(name);
+
+  if (isCustom) {
+    const note = document.createElement("p");
+    note.className = "manage-item-note";
+    note.textContent = "Custom";
+    info.appendChild(note);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "manage-actions";
+
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "small-btn";
+  toggleButton.textContent = isArchived ? "Restore" : "Archive";
+  toggleButton.addEventListener("click", () => {
+    if (isArchived) restoreMovement(type, movementName);
+    else archiveMovement(type, movementName);
+  });
+  actions.appendChild(toggleButton);
+
+  if (isCustom) {
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "small-btn danger";
+    removeButton.textContent = "Remove";
+    removeButton.addEventListener("click", () => removeCustomMovement(type, movementName));
+    actions.appendChild(removeButton);
+  }
+
+  row.append(info, actions);
+  return row;
+}
+
+function appendManageSection(container, titleText, emptyText) {
+  const section = document.createElement("section");
+  section.className = "manage-section";
+
+  const title = document.createElement("p");
+  title.className = "manage-section-title";
+  title.textContent = titleText;
+
+  const list = document.createElement("div");
+  list.className = "manage-list";
+
+  section.append(title, list);
+
+  if (emptyText) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = emptyText;
+    list.appendChild(empty);
+  }
+
+  container.appendChild(section);
+  return list;
+}
+
 function renderCustomManager() {
   for (const button of customTargetButtons) {
     button.classList.toggle("active", button.dataset.customTarget === state.customTarget);
@@ -753,31 +919,48 @@ function renderCustomManager() {
 
   customMovementList.innerHTML = "";
   const target = state.customTarget;
-  const customList = state.customOptions[target] || [];
+  const visibleList = getMovementOptions(target);
+  const customKeys = new Set((state.customOptions[target] || []).map((item) => movementKey(item)));
+  const archivedList = [];
+  const seenArchived = new Set();
 
-  if (customList.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = `No custom ${target} yet.`;
-    customMovementList.appendChild(empty);
-    return;
+  for (const movementName of state.archivedMovements[target] || []) {
+    const key = movementKey(movementName);
+    if (!key || seenArchived.has(key)) continue;
+    seenArchived.add(key);
+    archivedList.push(movementName);
   }
 
-  for (const movementName of customList) {
-    const row = document.createElement("div");
-    row.className = "manage-item";
+  const activeSection = appendManageSection(
+    customMovementList,
+    "Visible movements",
+    visibleList.length === 0 ? `No visible ${target}.` : ""
+  );
+  for (const movementName of visibleList) {
+    activeSection.appendChild(
+      createManageRow({
+        type: target,
+        movementName,
+        isCustom: customKeys.has(movementKey(movementName)),
+        isArchived: false,
+      })
+    );
+  }
 
-    const name = document.createElement("p");
-    name.textContent = movementName;
-
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "small-btn danger";
-    remove.textContent = "Remove";
-    remove.addEventListener("click", () => removeCustomMovement(target, movementName));
-
-    row.append(name, remove);
-    customMovementList.appendChild(row);
+  const archivedSection = appendManageSection(
+    customMovementList,
+    "Archived movements",
+    archivedList.length === 0 ? "No archived movements yet." : ""
+  );
+  for (const movementName of archivedList) {
+    archivedSection.appendChild(
+      createManageRow({
+        type: target,
+        movementName,
+        isCustom: customKeys.has(movementKey(movementName)),
+        isArchived: true,
+      })
+    );
   }
 }
 
