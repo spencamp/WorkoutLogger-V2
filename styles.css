@@ -10,6 +10,7 @@
   --danger: #ff6f8b;
   --success: #53efba;
   --shadow: rgba(0, 0, 0, 0.35);
+  --focus-ring: rgba(111, 214, 255, 0.55);
 }
 
 *,
@@ -121,6 +122,12 @@ h3 {
   margin-bottom: 0.6rem;
 }
 
+.day-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .streak-pill {
   font-size: 0.78rem;
   font-weight: 700;
@@ -128,6 +135,79 @@ h3 {
   background: linear-gradient(90deg, var(--success), #85f2ca);
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
+}
+
+.icon-btn {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: 1px solid #304258;
+  border-radius: 999px;
+  background: #151f2e;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.icon-btn:active {
+  transform: scale(0.98);
+}
+
+.icon-btn.active {
+  border-color: #58e4b5;
+  background: #17352c;
+  color: #ccffe9;
+}
+
+.date-picker-panel {
+  margin-bottom: 0.6rem;
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #29405c;
+  border-radius: 13px;
+  background: #101927;
+  padding: 0.7rem;
+}
+
+.date-picker-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.date-input,
+.import-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #304258;
+  background: #151f2e;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.75rem;
+}
+
+.date-picker-actions,
+.data-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.date-picker-actions {
+  justify-content: flex-end;
+}
+
+.date-banner {
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid #29405c;
+  border-radius: 12px;
+  background: #101927;
+  padding: 0.55rem 0.65rem;
 }
 
 .summary-grid {
@@ -221,10 +301,29 @@ h3 {
   margin-top: 0.45rem;
 }
 
+#data-message[data-tone="success"] {
+  color: var(--success);
+}
+
+#data-message[data-tone="error"] {
+  color: var(--danger);
+}
+
 .manage-list {
   margin-top: 0.35rem;
   display: grid;
   gap: 0.35rem;
+}
+
+.import-panel {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.import-input {
+  min-height: 6rem;
+  resize: vertical;
 }
 
 .manage-section + .manage-section {
@@ -766,7 +865,18 @@ h3 {
   backdrop-filter: blur(8px);
 }
 
+.composer-copy {
+  min-width: 0;
+}
+
+.composer-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .composer-summary {
+  margin-top: 0.12rem;
   color: var(--text-muted);
   font-size: 0.78rem;
 }
@@ -776,6 +886,30 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+.composer-meta-row {
+  margin-top: 0.42rem;
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.composer-chip {
+  margin: 0;
+  border: 1px solid #314964;
+  border-radius: 999px;
+  background: #101927;
+  color: var(--accent-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.24rem 0.58rem;
+}
+
+#composer-edit-chip {
+  border-color: #2f6450;
+  background: #17352c;
+  color: #ccffe9;
 }
 
 #clear-sticky {
@@ -832,6 +966,26 @@ h3 {
   border-color: #58e4b5;
   background: #17352c;
   color: #ccffe9;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes fadeSlide {
@@ -924,6 +1078,13 @@ h3 {
     align-items: flex-start;
   }
 
+  .day-summary-head,
+  .date-banner,
+  .data-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .value-grid,
   .movement-grid,
   .stats-grid,
@@ -959,6 +1120,15 @@ h3 {
 
   .manage-input-row {
     grid-template-columns: 1fr;
+  }
+
+  .date-picker-actions {
+    justify-content: stretch;
+  }
+
+  .date-picker-actions .small-btn,
+  .data-actions .small-btn {
+    width: 100%;
   }
 
   .manage-item {

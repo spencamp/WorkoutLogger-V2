@@ -19,6 +19,7 @@ import {
   calculateAdjustedAverage,
   buildRollingAverageSeries,
 } from "./trend-utils.js";
+import { createBackupCode, parseBackupCode } from "./backup-utils.js";
 
 const STORAGE_KEY = "workout-log-v1";
 const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
@@ -40,6 +41,7 @@ const state = {
   mode: "time",
   movementType: "stretches",
   selectedMovement: null,
+  selectedDateKey: getDateKey(Date.now()),
   totals: { time: 0, reps: 0 },
   entries: loadEntries(),
   customOptions: loadCustomOptions(),
@@ -53,6 +55,8 @@ const state = {
   trendBenchmarkSnapshot: loadTrendBenchmarkSnapshot(),
   lastAddedEntryId: null,
   addedHighlightTimerId: null,
+  datePickerOpen: false,
+  importPanelOpen: false,
 };
 
 const modeTabs = document.querySelectorAll("[data-mode-tab]");
@@ -76,10 +80,28 @@ const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
 const logList = document.getElementById("log-list");
+const summaryContext = document.getElementById("summary-context");
 const summaryDate = document.getElementById("summary-date");
 const summaryStreak = document.getElementById("summary-streak");
 const summaryGrid = document.getElementById("summary-grid");
+const toggleDatePickerButton = document.getElementById("toggle-date-picker");
+const datePickerPanel = document.getElementById("date-picker-panel");
+const entryDateInput = document.getElementById("entry-date-input");
+const resetDateButton = document.getElementById("reset-date");
+const closeDatePickerButton = document.getElementById("close-date-picker");
+const dateBanner = document.getElementById("date-banner");
+const dateBannerResetButton = document.getElementById("date-banner-reset");
+const copyBackupButton = document.getElementById("copy-backup");
+const toggleImportPanelButton = document.getElementById("toggle-import-panel");
+const importPanel = document.getElementById("import-panel");
+const importBackupInput = document.getElementById("import-backup-input");
+const importBackupButton = document.getElementById("import-backup");
+const cancelImportPanelButton = document.getElementById("cancel-import-panel");
+const dataMessage = document.getElementById("data-message");
 const composerSummary = document.getElementById("composer-summary");
+const composerTitle = document.getElementById("composer-title");
+const composerDateChip = document.getElementById("composer-date-chip");
+const composerEditChip = document.getElementById("composer-edit-chip");
 const clearStickyButton = document.getElementById("clear-sticky");
 const quickRepeatButton = document.getElementById("quick-repeat");
 const quickAddButtons = document.querySelectorAll("[data-quick-mode][data-quick-value]");
@@ -94,6 +116,7 @@ const customMovementInput = document.getElementById("custom-movement-input");
 const addCustomMovementButton = document.getElementById("add-custom-movement");
 const customMovementMessage = document.getElementById("custom-movement-message");
 const customMovementList = document.getElementById("custom-movement-list");
+const appStatus = document.getElementById("app-status");
 
 const panels = {
   add: addPanel,
@@ -286,6 +309,71 @@ function formatShortDate(dateKey) {
   }).format(parseDateKey(dateKey));
 }
 
+function getTodayDateKey() {
+  return getDateKey(Date.now());
+}
+
+function getSelectedDateKey() {
+  return state.selectedDateKey || getTodayDateKey();
+}
+
+function isSelectedDateToday() {
+  return getSelectedDateKey() === getTodayDateKey();
+}
+
+function isValidDateKey(dateKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey))) return false;
+  return !Number.isNaN(parseDateKey(dateKey).getTime());
+}
+
+function buildTimestampForDateKey(dateKey, referenceTimestamp = Date.now()) {
+  const date = parseDateKey(dateKey);
+  const reference = new Date(referenceTimestamp);
+
+  date.setHours(
+    reference.getHours(),
+    reference.getMinutes(),
+    reference.getSeconds(),
+    reference.getMilliseconds()
+  );
+
+  return date.getTime();
+}
+
+function formatSelectedDateLabel(dateKey) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(parseDateKey(dateKey));
+}
+
+function clearTrendBenchmarkSnapshot() {
+  state.trendBenchmarkSnapshot = null;
+  localStorage.removeItem(TREND_BENCHMARK_STORAGE_KEY);
+}
+
+function announceStatus(message) {
+  if (!appStatus || !message) return;
+
+  appStatus.textContent = "";
+  requestAnimationFrame(() => {
+    appStatus.textContent = message;
+  });
+}
+
+function setDataMessage(message, tone = "muted") {
+  dataMessage.textContent = message || "";
+  dataMessage.dataset.tone = message ? tone : "muted";
+}
+
+function setSelectedDateKey(dateKey) {
+  const todayKey = getTodayDateKey();
+  if (!isValidDateKey(dateKey)) return;
+
+  state.selectedDateKey = dateKey > todayKey ? todayKey : dateKey;
+}
+
 function getCurrentAmount() {
   return state.totals[state.mode];
 }
@@ -353,10 +441,14 @@ function saveWorkout() {
   const amount = getCurrentAmount();
   if (!state.selectedMovement || amount <= 0) return;
 
+  const selectedDateKey = getSelectedDateKey();
+  let statusMessage = "Workout added.";
+
   if (state.editingEntryId) {
     const entry = state.entries.find((item) => item.id === state.editingEntryId);
     if (!entry) return;
 
+    entry.timestamp = buildTimestampForDateKey(selectedDateKey, entry.timestamp);
     entry.movement = state.selectedMovement;
     entry.movementType = state.movementType;
     entry.mode = state.mode;
@@ -369,10 +461,11 @@ function saveWorkout() {
     }
 
     state.editingEntryId = null;
+    statusMessage = "Workout updated.";
   } else {
     const newEntry = {
       id: createId(),
-      timestamp: Date.now(),
+      timestamp: buildTimestampForDateKey(selectedDateKey),
       movement: state.selectedMovement,
       movementType: state.movementType,
       mode: state.mode,
@@ -389,10 +482,15 @@ function saveWorkout() {
     }
 
     state.selectedMovement = null;
+    statusMessage = isSelectedDateToday()
+      ? "Workout added."
+      : `Workout added for ${formatSelectedDateLabel(selectedDateKey)}.`;
   }
 
   resetSelectionForMode(state.mode);
   persistEntries();
+  clearTrendBenchmarkSnapshot();
+  announceStatus(statusMessage);
   render();
 }
 
@@ -407,10 +505,12 @@ function duplicateLastEntry() {
   const newest = getNewestEntry();
   if (!newest) return;
 
+  const selectedDateKey = getSelectedDateKey();
+
   const cloned = {
     ...newest,
     id: createId(),
-    timestamp: Date.now(),
+    timestamp: buildTimestampForDateKey(selectedDateKey),
   };
 
   const existing = findMatchingDayEntry(cloned);
@@ -428,6 +528,12 @@ function duplicateLastEntry() {
   state.totals[newest.mode] = newest.amount;
 
   persistEntries();
+  clearTrendBenchmarkSnapshot();
+  announceStatus(
+    isSelectedDateToday()
+      ? `Repeated ${newest.movement}.`
+      : `Repeated ${newest.movement} for ${formatSelectedDateLabel(selectedDateKey)}.`
+  );
   render();
 }
 
@@ -439,6 +545,7 @@ function editEntry(id) {
   state.mode = entry.mode;
   state.movementType = entry.movementType;
   state.selectedMovement = entry.movement;
+  state.selectedDateKey = getDateKey(entry.timestamp);
   state.totals[entry.mode] = entry.amount;
   state.mobileView = "add";
   render();
@@ -446,6 +553,7 @@ function editEntry(id) {
 
 function cancelEdit() {
   state.editingEntryId = null;
+  announceStatus("Edit canceled.");
   render();
 }
 
@@ -468,6 +576,8 @@ function deleteEntry(id) {
   if (state.editingEntryId === id) state.editingEntryId = null;
   setUndoEntry(removed, index);
   persistEntries();
+  clearTrendBenchmarkSnapshot();
+  announceStatus(`Deleted ${removed.movement}.`);
   render();
 }
 
@@ -487,6 +597,8 @@ function undoDelete() {
   if (state.undoTimerId) clearTimeout(state.undoTimerId);
   state.undoTimerId = null;
   persistEntries();
+  clearTrendBenchmarkSnapshot();
+  announceStatus(`Restored ${entry.movement}.`);
   render();
 }
 
@@ -494,10 +606,12 @@ function quickAddSet(id) {
   const entry = state.entries.find((item) => item.id === id);
   if (!entry) return;
 
+  const selectedDateKey = getSelectedDateKey();
+
   const cloned = {
     ...entry,
     id: createId(),
-    timestamp: Date.now(),
+    timestamp: buildTimestampForDateKey(selectedDateKey),
   };
 
   const existing = findMatchingDayEntry(cloned);
@@ -510,6 +624,12 @@ function quickAddSet(id) {
   }
 
   persistEntries();
+  clearTrendBenchmarkSnapshot();
+  announceStatus(
+    isSelectedDateToday()
+      ? `Added a set for ${entry.movement}.`
+      : `Added a set for ${entry.movement} on ${formatSelectedDateLabel(selectedDateKey)}.`
+  );
   render();
 }
 
@@ -757,6 +877,147 @@ function removeCustomMovement(type, movementName) {
   render();
 }
 
+function mergeMovementLists(targetList, importedList) {
+  const existingKeys = new Set(targetList.map((item) => movementKey(item)).filter(Boolean));
+  let addedCount = 0;
+
+  for (const movementName of importedList || []) {
+    const normalized = normalizeMovementName(movementName);
+    const key = movementKey(normalized);
+    if (!key || existingKeys.has(key)) continue;
+
+    existingKeys.add(key);
+    targetList.push(normalized);
+    addedCount += 1;
+  }
+
+  return addedCount;
+}
+
+function mergeImportedBackupData(backupData) {
+  const existingIds = new Set(state.entries.map((entry) => entry.id));
+  let importedEntries = 0;
+
+  for (const entry of backupData.entries.filter(isValidEntry)) {
+    if (existingIds.has(entry.id)) continue;
+    existingIds.add(entry.id);
+    state.entries.push(entry);
+    importedEntries += 1;
+  }
+
+  const importedCustomMovements =
+    mergeMovementLists(state.customOptions.stretches, backupData.customOptions.stretches) +
+    mergeMovementLists(state.customOptions.exercises, backupData.customOptions.exercises);
+
+  const importedArchivedMovements =
+    mergeMovementLists(state.archivedMovements.stretches, backupData.archivedMovements.stretches) +
+    mergeMovementLists(state.archivedMovements.exercises, backupData.archivedMovements.exercises);
+
+  return {
+    importedEntries,
+    importedCustomMovements,
+    importedArchivedMovements,
+  };
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  textarea.style.inset = "auto";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const successful = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (!successful) {
+    throw new Error("Clipboard access failed.");
+  }
+}
+
+async function copyBackupCode() {
+  const backupCode = createBackupCode({
+    entries: state.entries,
+    customOptions: state.customOptions,
+    archivedMovements: state.archivedMovements,
+    trendBenchmarkSnapshot: state.trendBenchmarkSnapshot,
+  });
+
+  try {
+    await copyTextToClipboard(backupCode);
+    setDataMessage("Backup copied to clipboard.", "success");
+    announceStatus("Backup copied to clipboard.");
+  } catch {
+    setDataMessage("Copy failed. Try again from the installed app.", "error");
+    announceStatus("Backup copy failed.");
+  }
+
+  renderDataControls();
+}
+
+function closeImportPanel({ clearInput = false } = {}) {
+  state.importPanelOpen = false;
+  if (clearInput) importBackupInput.value = "";
+}
+
+function importBackupCode() {
+  const rawBackupCode = importBackupInput.value.trim();
+  if (!rawBackupCode) {
+    setDataMessage("Paste a backup code first.", "error");
+    return;
+  }
+
+  let parsedBackup;
+  try {
+    parsedBackup = parseBackupCode(rawBackupCode);
+  } catch (error) {
+    setDataMessage(error.message, "error");
+    announceStatus("Backup import failed.");
+    return;
+  }
+
+  const results = mergeImportedBackupData(parsedBackup);
+  const totalChanges =
+    results.importedEntries +
+    results.importedCustomMovements +
+    results.importedArchivedMovements;
+
+  if (totalChanges === 0) {
+    setDataMessage("No new data found in that backup.", "muted");
+    announceStatus("No new backup data found.");
+    return;
+  }
+
+  persistEntries();
+  persistCustomOptions();
+  persistArchivedMovements();
+  clearTrendBenchmarkSnapshot();
+  closeImportPanel({ clearInput: true });
+
+  const summaryParts = [];
+  if (results.importedEntries > 0) summaryParts.push(`${results.importedEntries} entries`);
+  if (results.importedCustomMovements > 0) {
+    summaryParts.push(`${results.importedCustomMovements} custom movements`);
+  }
+  if (results.importedArchivedMovements > 0) {
+    summaryParts.push(`${results.importedArchivedMovements} archived movements`);
+  }
+
+  const summary = summaryParts.join(", ");
+  setDataMessage(`Imported ${summary}.`, "success");
+  announceStatus(`Backup imported: ${summary}.`);
+  render();
+}
+
 function animateSwap(container) {
   container.classList.remove("swap-in");
   void container.offsetWidth;
@@ -770,6 +1031,10 @@ function renderValueButtons() {
     button.type = "button";
     button.className = "chip-btn";
     button.textContent = state.mode === "time" ? `${value} sec` : `${value} reps`;
+    button.setAttribute(
+      "aria-label",
+      state.mode === "time" ? `Add ${value} seconds` : `Add ${value} reps`
+    );
     button.addEventListener("click", () => addToTotal(value));
     valueGrid.appendChild(button);
   }
@@ -805,6 +1070,7 @@ function renderMovementButtons() {
     if (state.selectedMovement === movement) button.classList.add("selected");
     if (highlightedStaleKeys.has(movementKey(movement))) button.classList.add("stale");
     button.textContent = movement;
+    button.setAttribute("aria-pressed", String(state.selectedMovement === movement));
     button.addEventListener("click", () => {
       state.selectedMovement = movement;
       render();
@@ -884,7 +1150,9 @@ function appendManageSection(container, titleText, emptyText) {
 
 function renderCustomManager() {
   for (const button of customTargetButtons) {
-    button.classList.toggle("active", button.dataset.customTarget === state.customTarget);
+    const isActive = button.dataset.customTarget === state.customTarget;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
 
   customMovementList.innerHTML = "";
@@ -936,21 +1204,65 @@ function renderCustomManager() {
 
 function renderTabs() {
   for (const tab of modeTabs) {
-    tab.classList.toggle("active", tab.dataset.modeTab === state.mode);
+    const isActive = tab.dataset.modeTab === state.mode;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-pressed", String(isActive));
   }
   for (const tab of movementTabs) {
-    tab.classList.toggle("active", tab.dataset.movementTab === state.movementType);
+    const isActive = tab.dataset.movementTab === state.movementType;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-pressed", String(isActive));
   }
+}
+
+function renderDateControls() {
+  const selectedDateKey = getSelectedDateKey();
+  const showPastDateBanner = selectedDateKey !== getTodayDateKey();
+
+  toggleDatePickerButton.classList.toggle("active", state.datePickerOpen || showPastDateBanner);
+  toggleDatePickerButton.setAttribute("aria-expanded", String(state.datePickerOpen));
+  toggleDatePickerButton.setAttribute(
+    "aria-label",
+    showPastDateBanner
+      ? `Change logging date. Currently ${formatSelectedDateLabel(selectedDateKey)}`
+      : "Choose logging date"
+  );
+
+  datePickerPanel.classList.toggle("hidden", !state.datePickerOpen);
+  entryDateInput.value = selectedDateKey;
+  entryDateInput.max = getTodayDateKey();
+  resetDateButton.disabled = showPastDateBanner === false;
+
+  dateBanner.classList.toggle("hidden", !showPastDateBanner);
+  dateBanner.querySelector(".hint").textContent = `Logging for ${formatSelectedDateLabel(
+    selectedDateKey
+  )}.`;
+}
+
+function renderDataControls() {
+  importPanel.classList.toggle("hidden", !state.importPanelOpen);
+  toggleImportPanelButton.textContent = state.importPanelOpen ? "Hide paste area" : "Paste backup code";
+  importBackupButton.disabled = importBackupInput.value.trim().length === 0;
 }
 
 function renderComposerState() {
   const amount = getCurrentAmount();
+  const selectedDateKey = getSelectedDateKey();
   selectedValueLabel.textContent =
     amount > 0 ? `Selected: ${formatAmount(state.mode, amount)}` : "No amount selected";
 
-  const movementText = state.selectedMovement || "Select movement";
-  const amountText = amount > 0 ? formatAmount(state.mode, amount) : "No amount";
-  composerSummary.textContent = `${movementText} • ${amountText}`;
+  if (state.selectedMovement || amount > 0) {
+    composerTitle.textContent = state.selectedMovement || "Select movement";
+    composerSummary.textContent =
+      amount > 0 ? formatAmount(state.mode, amount) : "Select amount to finish this draft";
+  } else {
+    composerTitle.textContent = "Select amount + movement";
+    composerSummary.textContent = "No amount selected";
+  }
+
+  composerDateChip.textContent = formatSelectedDateLabel(selectedDateKey);
+  composerDateChip.classList.toggle("hidden", isSelectedDateToday());
+  composerEditChip.classList.toggle("hidden", !state.editingEntryId);
 
   saveWorkoutButton.disabled = amount <= 0 || !state.selectedMovement;
   saveWorkoutButton.textContent = state.editingEntryId ? "Save changes" : "Add workout";
@@ -978,21 +1290,26 @@ function renderUndoBar() {
 function renderDaySummary() {
   summaryGrid.innerHTML = "";
 
-  const todayKey = getDateKey(Date.now());
-  const todayEntries = state.entries.filter((entry) => getDateKey(entry.timestamp) === todayKey);
-  const todayTotals = summarizeEntries(todayEntries);
+  const selectedDateKey = getSelectedDateKey();
+  const selectedEntries = state.entries.filter(
+    (entry) => getDateKey(entry.timestamp) === selectedDateKey
+  );
+  const selectedTotals = summarizeEntries(selectedEntries);
   const streaks = getStreakStats();
 
-  summaryDate.textContent = new Intl.DateTimeFormat(undefined, {
-    month: "long",
-    day: "numeric",
-  }).format(new Date());
+  summaryContext.textContent = isSelectedDateToday() ? "Today" : "Logging day";
+  summaryDate.textContent = isSelectedDateToday()
+    ? new Intl.DateTimeFormat(undefined, {
+        month: "long",
+        day: "numeric",
+      }).format(new Date())
+    : formatDateKey(selectedDateKey);
   summaryStreak.textContent = `${streaks.currentStreak}-day streak`;
 
   const cards = [
-    { label: "Today min", value: formatMinutes(todayTotals.timeSeconds) },
-    { label: "Today reps", value: `${todayTotals.reps}` },
-    { label: "Sessions", value: `${todayEntries.length}` },
+    { label: "Logged min", value: formatMinutes(selectedTotals.timeSeconds) },
+    { label: "Logged reps", value: `${selectedTotals.reps}` },
+    { label: "Sessions", value: `${selectedEntries.length}` },
     { label: "Best streak", value: `${streaks.longestStreak} days` },
   ];
 
@@ -1121,7 +1438,9 @@ function renderTrendChart() {
   trendComparison.innerHTML = "";
 
   for (const button of trendMetricButtons) {
-    button.classList.toggle("active", button.dataset.trendMetric === state.trendMetric);
+    const isActive = button.dataset.trendMetric === state.trendMetric;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
 
   const trendView = buildTrendViewModel(state.trendMetric);
@@ -1440,18 +1759,21 @@ function renderLog() {
       setBtn.type = "button";
       setBtn.className = "small-btn";
       setBtn.textContent = "+1 set";
+      setBtn.setAttribute("aria-label", `Add one more set for ${entry.movement}`);
       setBtn.addEventListener("click", () => quickAddSet(entry.id));
 
       const editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "small-btn";
       editBtn.textContent = "Edit";
+      editBtn.setAttribute("aria-label", `Edit ${entry.movement}`);
       editBtn.addEventListener("click", () => editEntry(entry.id));
 
       const deleteBtn = document.createElement("button");
       deleteBtn.type = "button";
       deleteBtn.className = "small-btn danger";
       deleteBtn.textContent = "Delete";
+      deleteBtn.setAttribute("aria-label", `Delete ${entry.movement}`);
       deleteBtn.addEventListener("click", () => deleteEntry(entry.id));
 
       controls.append(setBtn, editBtn, deleteBtn);
@@ -1479,7 +1801,9 @@ function renderMobilePanels() {
       panel.classList.add("active-panel");
     }
     for (const button of panelButtons) {
-      button.classList.toggle("active", button.dataset.mobileView === "add");
+      const isActive = button.dataset.mobileView === "add";
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
     }
     return;
   }
@@ -1489,7 +1813,9 @@ function renderMobilePanels() {
     panel.classList.toggle("active-panel", state.mobileView === view);
   }
   for (const button of panelButtons) {
-    button.classList.toggle("active", button.dataset.mobileView === state.mobileView);
+    const isActive = button.dataset.mobileView === state.mobileView;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
 }
 
@@ -1498,6 +1824,8 @@ function render() {
   renderValueButtons();
   renderMovementButtons();
   renderCustomManager();
+  renderDateControls();
+  renderDataControls();
   renderComposerState();
   renderUndoBar();
   renderDaySummary();
@@ -1559,6 +1887,13 @@ function setupDoubleTapZoomGuard() {
   );
 }
 
+function resetSelectedDateToToday() {
+  setSelectedDateKey(getTodayDateKey());
+  state.datePickerOpen = false;
+  announceStatus("Logging for today.");
+  render();
+}
+
 for (const tab of modeTabs) {
   tab.addEventListener("click", () => updateMode(tab.dataset.modeTab));
 }
@@ -1599,6 +1934,39 @@ for (const button of quickAddButtons) {
   });
 }
 
+toggleDatePickerButton.addEventListener("click", () => {
+  state.datePickerOpen = !state.datePickerOpen;
+  renderDateControls();
+});
+entryDateInput.addEventListener("change", () => {
+  setSelectedDateKey(entryDateInput.value);
+  announceStatus(
+    isSelectedDateToday()
+      ? "Logging for today."
+      : `Logging for ${formatSelectedDateLabel(getSelectedDateKey())}.`
+  );
+  render();
+});
+resetDateButton.addEventListener("click", resetSelectedDateToToday);
+closeDatePickerButton.addEventListener("click", () => {
+  state.datePickerOpen = false;
+  renderDateControls();
+});
+dateBannerResetButton.addEventListener("click", resetSelectedDateToToday);
+copyBackupButton.addEventListener("click", copyBackupCode);
+toggleImportPanelButton.addEventListener("click", () => {
+  state.importPanelOpen = !state.importPanelOpen;
+  if (!state.importPanelOpen) {
+    importBackupInput.value = "";
+  }
+  renderDataControls();
+});
+importBackupInput.addEventListener("input", renderDataControls);
+importBackupButton.addEventListener("click", importBackupCode);
+cancelImportPanelButton.addEventListener("click", () => {
+  closeImportPanel({ clearInput: true });
+  renderDataControls();
+});
 clearValueButton.addEventListener("click", clearCurrentTotal);
 clearStickyButton.addEventListener("click", clearDraftSelection);
 saveWorkoutButton.addEventListener("click", saveWorkout);
