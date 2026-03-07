@@ -185,6 +185,7 @@ h3 {
 
 .date-input,
 .import-input {
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -205,6 +206,7 @@ h3 {
 .date-picker-actions,
 .data-actions {
   display: flex;
+  align-items: stretch;
   gap: 0.45rem;
   flex-wrap: wrap;
 }
@@ -492,6 +494,9 @@ h3 {
 .small-btn,
 .quick-chip,
 .mobile-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 12px;
   border: 1px solid #304258;
   min-height: 3rem;
@@ -502,8 +507,6 @@ h3 {
 }
 
 .primary-btn {
-  flex: 1;
-  min-width: 170px;
   border: 0;
   background: linear-gradient(90deg, var(--accent), #97f2d2);
   color: #002518;
@@ -1107,6 +1110,7 @@ h3 {
 }
 
 #clear-sticky {
+  flex-shrink: 0;
   min-height: 2rem;
   padding: 0 0.7rem;
 }
@@ -1128,12 +1132,21 @@ h3 {
 
 .composer-actions {
   margin-top: 0.4rem;
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.35rem;
 }
 
+.composer-actions > * {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+#save-workout,
 #cancel-edit {
+  display: inline-flex;
   min-height: 2.4rem;
 }
 
