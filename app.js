@@ -1,4 +1,5 @@
 import { WORKOUT_OPTIONS } from "./workout-options.js";
+import { normalizePersistedEntry } from "./stored-entry-utils.js";
 import {
   getDateKey,
   parseDateKey,
@@ -161,22 +162,14 @@ function loadEntries() {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidEntry);
+    return parsed.map(normalizePersistedEntry).filter(Boolean);
   } catch {
     return [];
   }
 }
 
 function isValidEntry(entry) {
-  return (
-    entry &&
-    typeof entry.id === "string" &&
-    (entry.mode === "time" || entry.mode === "reps") &&
-    typeof entry.amount === "number" &&
-    typeof entry.timestamp === "number" &&
-    typeof entry.movement === "string" &&
-    (entry.movementType === "stretches" || entry.movementType === "exercises")
-  );
+  return Boolean(normalizePersistedEntry(entry));
 }
 
 function loadCustomOptions() {
@@ -988,9 +981,10 @@ function mergeMovementLists(targetList, importedList) {
 
 function mergeImportedBackupData(backupData) {
   const existingIds = new Set(state.entries.map((entry) => entry.id));
+  const normalizedEntries = backupData.entries.map(normalizePersistedEntry).filter(Boolean);
   let importedEntries = 0;
 
-  for (const entry of backupData.entries.filter(isValidEntry)) {
+  for (const entry of normalizedEntries) {
     if (existingIds.has(entry.id)) continue;
     existingIds.add(entry.id);
     state.entries.push(entry);
@@ -1006,6 +1000,8 @@ function mergeImportedBackupData(backupData) {
     mergeMovementLists(state.archivedMovements.exercises, backupData.archivedMovements.exercises);
 
   return {
+    backupEntryCount: backupData.entries.length,
+    compatibleEntryCount: normalizedEntries.length,
     importedEntries,
     importedCustomMovements,
     importedArchivedMovements,
@@ -1083,9 +1079,20 @@ function importBackupCode() {
     results.importedCustomMovements +
     results.importedArchivedMovements;
 
+  if (
+    results.backupEntryCount > 0 &&
+    results.compatibleEntryCount === 0 &&
+    results.importedCustomMovements === 0 &&
+    results.importedArchivedMovements === 0
+  ) {
+    setDataMessage("Backup code was read, but its entries did not match a usable format.", "error", 0);
+    announceStatus("Backup import failed.");
+    return;
+  }
+
   if (totalChanges === 0) {
-    setDataMessage("No new data found in that backup.", "muted");
-    announceStatus("No new backup data found.");
+    setDataMessage("That backup is already loaded here.", "muted");
+    announceStatus("That backup is already loaded.");
     return;
   }
 
