@@ -1129,12 +1129,11 @@ h3 {
 .composer-actions {
   margin-top: 0.4rem;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.35rem;
 }
 
 #cancel-edit {
-  grid-column: 1 / -1;
   min-height: 2.4rem;
 }
 
