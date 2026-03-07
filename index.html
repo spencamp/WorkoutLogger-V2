@@ -164,6 +164,15 @@
         <section class="card">
           <h2>Workout Log</h2>
           <p class="hint">Swipe right for +1 set, swipe left to delete.</p>
+          <div class="log-toolbar">
+            <div class="log-filter-row" aria-label="Workout log range">
+              <button class="filter-chip active" data-log-filter="today" type="button">Today</button>
+              <button class="filter-chip" data-log-filter="7d" type="button">7d</button>
+              <button class="filter-chip" data-log-filter="30d" type="button">30d</button>
+              <button class="filter-chip" data-log-filter="all" type="button">All</button>
+            </div>
+            <p class="hint log-filter-summary" id="log-filter-summary">All history</p>
+          </div>
           <div id="log-list"></div>
         </section>
       </section>

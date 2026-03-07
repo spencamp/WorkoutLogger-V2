@@ -10,6 +10,7 @@ import {
 } from "./entry-utils.js";
 import { buildMovementHistory, selectHighlightedStaleMovements } from "./movement-utils.js";
 import {
+  getEntriesForRange as getEntriesForRangeFromList,
   getEntriesWithinDays as getEntriesWithinDaysFromList,
   getStreakStats as getStreakStatsFromEntries,
 } from "./stats-utils.js";
@@ -36,6 +37,13 @@ const MOVEMENT_LABEL = {
   stretches: "stretch",
   exercises: "exercise",
 };
+const DATA_MESSAGE_CLEAR_DELAY_MS = 3600;
+const LOG_FILTER_OPTIONS = [
+  { value: "today", label: "Today" },
+  { value: "7d", label: "7d" },
+  { value: "30d", label: "30d" },
+  { value: "all", label: "All" },
+];
 
 const state = {
   mode: "time",
@@ -57,6 +65,9 @@ const state = {
   addedHighlightTimerId: null,
   datePickerOpen: false,
   importPanelOpen: false,
+  dataMessageTimerId: null,
+  preEditDateKey: null,
+  logFilter: "all",
 };
 
 const modeTabs = document.querySelectorAll("[data-mode-tab]");
@@ -80,6 +91,8 @@ const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
 const logList = document.getElementById("log-list");
+const logFilterButtons = document.querySelectorAll("[data-log-filter]");
+const logFilterSummary = document.getElementById("log-filter-summary");
 const summaryContext = document.getElementById("summary-context");
 const summaryDate = document.getElementById("summary-date");
 const summaryStreak = document.getElementById("summary-streak");
@@ -362,9 +375,22 @@ function announceStatus(message) {
   });
 }
 
-function setDataMessage(message, tone = "muted") {
+function setDataMessage(message, tone = "muted", autoClearMs = DATA_MESSAGE_CLEAR_DELAY_MS) {
+  if (state.dataMessageTimerId) {
+    clearTimeout(state.dataMessageTimerId);
+    state.dataMessageTimerId = null;
+  }
+
   dataMessage.textContent = message || "";
   dataMessage.dataset.tone = message ? tone : "muted";
+
+  if (!message || tone === "error" || autoClearMs <= 0) return;
+
+  state.dataMessageTimerId = setTimeout(() => {
+    dataMessage.textContent = "";
+    dataMessage.dataset.tone = "muted";
+    state.dataMessageTimerId = null;
+  }, autoClearMs);
 }
 
 function setSelectedDateKey(dateKey) {
@@ -434,6 +460,7 @@ function clearDraftSelection() {
   state.totals.reps = 0;
   state.selectedMovement = null;
   state.editingEntryId = null;
+  state.preEditDateKey = null;
   render();
 }
 
@@ -460,7 +487,6 @@ function saveWorkout() {
       state.entries = state.entries.filter((item) => item.id !== entry.id);
     }
 
-    state.editingEntryId = null;
     statusMessage = "Workout updated.";
   } else {
     const newEntry = {
@@ -481,12 +507,19 @@ function saveWorkout() {
       queueAddedHighlight(newEntry.id);
     }
 
-    state.selectedMovement = null;
     statusMessage = isSelectedDateToday()
       ? "Workout added."
       : `Workout added for ${formatSelectedDateLabel(selectedDateKey)}.`;
   }
 
+  if (state.editingEntryId && state.preEditDateKey) {
+    state.selectedDateKey = state.preEditDateKey;
+  }
+
+  state.selectedMovement = null;
+  state.editingEntryId = null;
+  state.preEditDateKey = null;
+  state.datePickerOpen = false;
   resetSelectionForMode(state.mode);
   persistEntries();
   clearTrendBenchmarkSnapshot();
@@ -541,6 +574,10 @@ function editEntry(id) {
   const entry = state.entries.find((item) => item.id === id);
   if (!entry) return;
 
+  if (!state.editingEntryId) {
+    state.preEditDateKey = getSelectedDateKey();
+  }
+
   state.editingEntryId = id;
   state.mode = entry.mode;
   state.movementType = entry.movementType;
@@ -548,11 +585,21 @@ function editEntry(id) {
   state.selectedDateKey = getDateKey(entry.timestamp);
   state.totals[entry.mode] = entry.amount;
   state.mobileView = "add";
+  state.datePickerOpen = false;
   render();
 }
 
 function cancelEdit() {
+  if (state.preEditDateKey) {
+    state.selectedDateKey = state.preEditDateKey;
+  }
+
+  state.totals.time = 0;
+  state.totals.reps = 0;
+  state.selectedMovement = null;
   state.editingEntryId = null;
+  state.preEditDateKey = null;
+  state.datePickerOpen = false;
   announceStatus("Edit canceled.");
   render();
 }
@@ -641,6 +688,15 @@ function quickAddAmount(mode, value) {
 
 function getEntriesWithinDays(days) {
   return getEntriesWithinDaysFromList(state.entries, days, getDateKey(Date.now()));
+}
+
+function getEntriesForRange(range) {
+  return getEntriesForRangeFromList(state.entries, range, getTodayDateKey());
+}
+
+function getLogFilterLabel(range) {
+  const option = LOG_FILTER_OPTIONS.find((item) => item.value === range);
+  return option?.label || "All";
 }
 
 function summarizeEntries(entries) {
@@ -972,7 +1028,7 @@ function closeImportPanel({ clearInput = false } = {}) {
 function importBackupCode() {
   const rawBackupCode = importBackupInput.value.trim();
   if (!rawBackupCode) {
-    setDataMessage("Paste a backup code first.", "error");
+    setDataMessage("Paste a backup code first.", "error", 0);
     return;
   }
 
@@ -980,7 +1036,7 @@ function importBackupCode() {
   try {
     parsedBackup = parseBackupCode(rawBackupCode);
   } catch (error) {
-    setDataMessage(error.message, "error");
+    setDataMessage(error.message, "error", 0);
     announceStatus("Backup import failed.");
     return;
   }
@@ -1241,7 +1297,7 @@ function renderDateControls() {
 
 function renderDataControls() {
   importPanel.classList.toggle("hidden", !state.importPanelOpen);
-  toggleImportPanelButton.textContent = state.importPanelOpen ? "Hide paste area" : "Paste backup code";
+  toggleImportPanelButton.textContent = state.importPanelOpen ? "Hide backup code" : "Paste backup code";
   importBackupButton.disabled = importBackupInput.value.trim().length === 0;
 }
 
@@ -1251,21 +1307,33 @@ function renderComposerState() {
   selectedValueLabel.textContent =
     amount > 0 ? `Selected: ${formatAmount(state.mode, amount)}` : "No amount selected";
 
-  if (state.selectedMovement || amount > 0) {
-    composerTitle.textContent = state.selectedMovement || "Select movement";
-    composerSummary.textContent =
-      amount > 0 ? formatAmount(state.mode, amount) : "Select amount to finish this draft";
+  if (state.selectedMovement && amount > 0) {
+    composerTitle.textContent = state.selectedMovement;
+    composerSummary.textContent = `${formatAmount(state.mode, amount)} ready to log`;
+  } else if (state.selectedMovement) {
+    composerTitle.textContent = state.selectedMovement;
+    composerSummary.textContent = "Choose an amount";
+  } else if (amount > 0) {
+    composerTitle.textContent = "Choose a movement";
+    composerSummary.textContent = `${formatAmount(state.mode, amount)} ready`;
   } else {
-    composerTitle.textContent = "Select amount + movement";
-    composerSummary.textContent = "No amount selected";
+    composerTitle.textContent = state.editingEntryId ? "Update this workout" : "Select amount + movement";
+    composerSummary.textContent = "Quick chips add time or reps";
   }
 
   composerDateChip.textContent = formatSelectedDateLabel(selectedDateKey);
   composerDateChip.classList.toggle("hidden", isSelectedDateToday());
+  composerEditChip.textContent = "Editing entry";
   composerEditChip.classList.toggle("hidden", !state.editingEntryId);
 
   saveWorkoutButton.disabled = amount <= 0 || !state.selectedMovement;
-  saveWorkoutButton.textContent = state.editingEntryId ? "Save changes" : "Add workout";
+  saveWorkoutButton.textContent = state.editingEntryId
+    ? isSelectedDateToday()
+      ? "Save changes"
+      : `Save for ${formatShortDate(selectedDateKey)}`
+    : isSelectedDateToday()
+      ? "Add workout"
+      : `Add for ${formatShortDate(selectedDateKey)}`;
   cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
   duplicateLastButton.disabled = state.entries.length === 0;
   quickRepeatButton.disabled = state.entries.length === 0;
@@ -1698,15 +1766,40 @@ function setupSwipeRow(row, content, entryId) {
   row.addEventListener("touchcancel", onTouchEnd, { passive: true });
 }
 
+function renderLogFilters(entries) {
+  const groupedDays = new Set(entries.map((entry) => getDateKey(entry.timestamp)));
+  if (entries.length === 0) {
+    logFilterSummary.textContent =
+      state.logFilter === "all" ? "All history" : `${getLogFilterLabel(state.logFilter)} window`;
+  } else {
+    logFilterSummary.textContent =
+      state.logFilter === "all"
+        ? `${entries.length} workouts across ${groupedDays.size} days`
+        : `${getLogFilterLabel(state.logFilter)} • ${entries.length} workouts across ${groupedDays.size} days`;
+  }
+
+  for (const button of logFilterButtons) {
+    const isActive = button.dataset.logFilter === state.logFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  }
+}
+
 function renderLog() {
   logList.innerHTML = "";
-  const sortedEntries = [...state.entries].sort((a, b) => b.timestamp - a.timestamp);
+  const filteredEntries = getEntriesForRange(state.logFilter);
+  const sortedEntries = [...filteredEntries].sort((a, b) => b.timestamp - a.timestamp);
   const groups = groupedEntries(sortedEntries);
+
+  renderLogFilters(filteredEntries);
 
   if (groups.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No workouts logged yet.";
+    empty.textContent =
+      state.logFilter === "all"
+        ? "No workouts logged yet."
+        : `No workouts in ${getLogFilterLabel(state.logFilter)} yet.`;
     logList.appendChild(empty);
     return;
   }
@@ -1934,6 +2027,16 @@ for (const button of quickAddButtons) {
   });
 }
 
+for (const button of logFilterButtons) {
+  button.addEventListener("click", () => {
+    const nextFilter = button.dataset.logFilter;
+    if (!LOG_FILTER_OPTIONS.some((option) => option.value === nextFilter)) return;
+    state.logFilter = nextFilter;
+    announceStatus(`Showing ${getLogFilterLabel(nextFilter)} workouts.`);
+    renderLog();
+  });
+}
+
 toggleDatePickerButton.addEventListener("click", () => {
   state.datePickerOpen = !state.datePickerOpen;
   renderDateControls();
@@ -1958,6 +2061,10 @@ toggleImportPanelButton.addEventListener("click", () => {
   state.importPanelOpen = !state.importPanelOpen;
   if (!state.importPanelOpen) {
     importBackupInput.value = "";
+  } else {
+    requestAnimationFrame(() => {
+      importBackupInput.focus();
+    });
   }
   renderDataControls();
 });

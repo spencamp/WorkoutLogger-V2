@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getEntriesWithinDays, getStreakStats } from "../stats-utils.js";
+import { getEntriesForRange, getEntriesWithinDays, getStreakStats } from "../stats-utils.js";
 
 test("getEntriesWithinDays includes the full oldest calendar day across DST fallback", () => {
   const previousTz = process.env.TZ;
@@ -38,4 +38,29 @@ test("getStreakStats keeps longest streak intact across DST fallback", () => {
   } finally {
     process.env.TZ = previousTz;
   }
+});
+
+test("getEntriesForRange supports today, 7d, 30d, and all", () => {
+  const entries = [
+    { id: "old", timestamp: new Date(2026, 0, 1, 8, 0).getTime() },
+    { id: "week", timestamp: new Date(2026, 2, 1, 8, 0).getTime() },
+    { id: "today", timestamp: new Date(2026, 2, 7, 8, 0).getTime() },
+  ];
+
+  assert.deepEqual(
+    getEntriesForRange(entries, "today", "2026-03-07").map((entry) => entry.id),
+    ["today"]
+  );
+  assert.deepEqual(
+    getEntriesForRange(entries, "7d", "2026-03-07").map((entry) => entry.id),
+    ["week", "today"]
+  );
+  assert.deepEqual(
+    getEntriesForRange(entries, "30d", "2026-03-07").map((entry) => entry.id),
+    ["week", "today"]
+  );
+  assert.deepEqual(
+    getEntriesForRange(entries, "all", "2026-03-07").map((entry) => entry.id),
+    ["old", "week", "today"]
+  );
 });

@@ -19,6 +19,15 @@ export function getEntriesWithinDays(entries, days, todayDateKey = getDateKey(Da
   });
 }
 
+export function getEntriesForRange(entries, range = "all", todayDateKey = getDateKey(Date.now())) {
+  if (!Array.isArray(entries)) return [];
+  if (range === "all") return [...entries];
+  if (range === "today") return getEntriesWithinDays(entries, 1, todayDateKey);
+  if (range === "7d") return getEntriesWithinDays(entries, 7, todayDateKey);
+  if (range === "30d") return getEntriesWithinDays(entries, 30, todayDateKey);
+  return [];
+}
+
 export function getStreakStats(entries, todayDateKey = getDateKey(Date.now())) {
   const counts = buildDailyCounts(entries);
   const keys = Object.keys(counts).sort();
