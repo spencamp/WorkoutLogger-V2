@@ -1327,10 +1327,6 @@ summary:focus-visible {
     min-height: 2.8rem;
   }
 
-  .composer-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .manage-input-row {
     grid-template-columns: 1fr;
   }
