@@ -734,6 +734,61 @@ h3 {
   gap: 0.5rem;
 }
 
+.milestone-grid {
+  margin-top: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.milestone-card {
+  border: 1px solid #2b3f56;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12)),
+    #111a29;
+  padding: 0.65rem;
+}
+
+.milestone-card.accent-a {
+  background:
+    radial-gradient(200px 90px at 100% 0%, rgba(61, 226, 168, 0.13), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12)),
+    #111a29;
+}
+
+.milestone-card.accent-b {
+  background:
+    radial-gradient(220px 100px at 100% 0%, rgba(111, 214, 255, 0.12), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12)),
+    #111a29;
+}
+
+.milestone-card.accent-c {
+  background:
+    radial-gradient(200px 95px at 100% 0%, rgba(255, 111, 139, 0.12), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12)),
+    #111a29;
+}
+
+.milestone-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.milestone-value {
+  margin-top: 0.18rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.milestone-meta {
+  margin-top: 0.22rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .trend-callout {
   border: 1px solid #2b3f56;
   border-radius: 11px;
@@ -1161,7 +1216,8 @@ summary:focus-visible {
   .movement-grid,
   .stats-grid,
   .streak-grid,
-  .trend-comparison {
+  .trend-comparison,
+  .milestone-grid {
     grid-template-columns: 1fr;
   }
 

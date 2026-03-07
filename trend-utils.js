@@ -104,3 +104,68 @@ export function buildRollingAverageSeries({
     }),
   }));
 }
+
+export function getPeakRollingAverage({
+  valuesByDay,
+  metric,
+  windowDays,
+  firstTrackedDateKey = null,
+  endDateKey,
+}) {
+  const trackedStartKey = firstTrackedDateKey || Object.keys(valuesByDay || {}).sort()[0] || null;
+  if (!trackedStartKey || !endDateKey) return null;
+
+  const series = buildRollingAverageSeries({
+    startDateKey: trackedStartKey,
+    endDateKey,
+    valuesByDay,
+    metric,
+    windowDays,
+    firstTrackedDateKey: trackedStartKey,
+  });
+
+  let peak = null;
+  for (const point of series) {
+    if (!peak || point.value > peak.value || (point.value === peak.value && point.dateKey > peak.dateKey)) {
+      peak = point;
+    }
+  }
+
+  return peak;
+}
+
+export function getBestDailyTotal({ valuesByDay, metric }) {
+  let best = null;
+
+  for (const dateKey of Object.keys(valuesByDay || {})) {
+    const value = getMetricValue(valuesByDay, dateKey, metric);
+    if (!best || value > best.value || (value === best.value && dateKey > best.dateKey)) {
+      best = { dateKey, value };
+    }
+  }
+
+  return best;
+}
+
+export function getWeeklyTotals({ valuesByDay, metric, endDateKey = getDateKey(Date.now()) }) {
+  const currentWeekStartKey = getWeekBucketKey(endDateKey);
+  const previousWeekStartKey = shiftEntryDateKey(currentWeekStartKey, -7);
+  const currentWeekKeys = getDateRangeKeys(currentWeekStartKey, shiftEntryDateKey(currentWeekStartKey, 6));
+  const previousWeekKeys = getDateRangeKeys(previousWeekStartKey, shiftEntryDateKey(previousWeekStartKey, 6));
+
+  const currentTotal = currentWeekKeys.reduce(
+    (sum, dateKey) => sum + getMetricValue(valuesByDay, dateKey, metric),
+    0
+  );
+  const previousTotal = previousWeekKeys.reduce(
+    (sum, dateKey) => sum + getMetricValue(valuesByDay, dateKey, metric),
+    0
+  );
+
+  return {
+    currentWeekStartKey,
+    currentTotal,
+    previousWeekStartKey,
+    previousTotal,
+  };
+}

@@ -8,7 +8,11 @@ import {
   findMatchingDayEntry as findMatchingDayEntryInList,
   mergeEntryAmounts,
 } from "./entry-utils.js";
-import { buildMovementHistory, selectHighlightedStaleMovements } from "./movement-utils.js";
+import {
+  buildMovementHistory,
+  getFullDayDifference,
+  selectHighlightedStaleMovements,
+} from "./movement-utils.js";
 import {
   getEntriesForRange as getEntriesForRangeFromList,
   getEntriesWithinDays as getEntriesWithinDaysFromList,
@@ -19,6 +23,9 @@ import {
   getFirstTrackedDateKey,
   calculateAdjustedAverage,
   buildRollingAverageSeries,
+  getPeakRollingAverage,
+  getBestDailyTotal,
+  getWeeklyTotals,
 } from "./trend-utils.js";
 import { createBackupCode, parseBackupCode } from "./backup-utils.js";
 
@@ -87,6 +94,7 @@ const trendMetricButtons = document.querySelectorAll("[data-trend-metric]");
 const trendChart = document.getElementById("trend-chart");
 const trendAxis = document.getElementById("trend-axis");
 const trendComparison = document.getElementById("trend-comparison");
+const milestoneGrid = document.getElementById("milestone-grid");
 const movementTrends = document.getElementById("movement-trends");
 const streakGrid = document.getElementById("streak-grid");
 const heatmap = document.getElementById("heatmap");
@@ -1473,6 +1481,149 @@ function renderTrendComparisonCards(metric, series7, series30) {
   }
 }
 
+function getStaleMovementCandidate() {
+  const todayDateKey = getTodayDateKey();
+  const movementHistory = buildMovementHistory(state.entries);
+  const candidates = [];
+
+  for (const type of ["stretches", "exercises"]) {
+    const visibleMovementNames = getMovementOptions(type);
+    const highlightedKeys = selectHighlightedStaleMovements({
+      movementHistory: movementHistory[type],
+      visibleMovementNames,
+      todayDateKey,
+      minLogs: STALE_MOVEMENT_MIN_LOGS,
+      staleAfterDays: STALE_AFTER_DAYS,
+      maxHighlights: STALE_MOVEMENT_LIMIT,
+    });
+
+    for (const key of highlightedKeys) {
+      const record = movementHistory[type][key];
+      if (!record) continue;
+
+      const name =
+        visibleMovementNames.find((movementName) => movementKey(movementName) === key) ||
+        state.entries.find((entry) => movementKey(entry.movement) === key)?.movement ||
+        key;
+
+      candidates.push({
+        name,
+        lastLoggedDateKey: record.lastLoggedDateKey,
+        daysSince: getFullDayDifference(record.lastLoggedDateKey, todayDateKey),
+      });
+    }
+  }
+
+  candidates.sort((a, b) => {
+    if (a.daysSince !== b.daysSince) return b.daysSince - a.daysSince;
+    return a.lastLoggedDateKey.localeCompare(b.lastLoggedDateKey);
+  });
+
+  return candidates[0] || null;
+}
+
+function createMilestoneCard({ label, value, meta, accent = "" }) {
+  const card = document.createElement("article");
+  card.className = `milestone-card ${accent}`.trim();
+
+  const labelNode = document.createElement("p");
+  labelNode.className = "milestone-label";
+  labelNode.textContent = label;
+
+  const valueNode = document.createElement("p");
+  valueNode.className = "milestone-value";
+  valueNode.textContent = value;
+
+  const metaNode = document.createElement("p");
+  metaNode.className = "milestone-meta";
+  metaNode.textContent = meta;
+
+  card.append(labelNode, valueNode, metaNode);
+  return card;
+}
+
+function renderMilestones() {
+  milestoneGrid.innerHTML = "";
+
+  const valuesByDay = buildDailyTotals(state.entries);
+  const firstTrackedDateKey = getFirstTrackedDateKey(state.entries);
+  const endDateKey = getTodayDateKey();
+  if (!firstTrackedDateKey) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Log a few workouts to unlock milestone cards.";
+    milestoneGrid.appendChild(empty);
+    return;
+  }
+
+  const metric = state.trendMetric;
+  const peak7 = getPeakRollingAverage({
+    valuesByDay,
+    metric,
+    windowDays: 7,
+    firstTrackedDateKey,
+    endDateKey,
+  });
+  const peak30 = getPeakRollingAverage({
+    valuesByDay,
+    metric,
+    windowDays: 30,
+    firstTrackedDateKey,
+    endDateKey,
+  });
+  const bestDay = getBestDailyTotal({ valuesByDay, metric });
+  const weeklyTotals = getWeeklyTotals({ valuesByDay, metric, endDateKey });
+  const staleMovement = getStaleMovementCandidate();
+
+  const weekValue =
+    weeklyTotals.currentTotal === 0 && weeklyTotals.previousTotal === 0
+      ? "No activity yet"
+      : formatTrendChange(weeklyTotals.currentTotal, weeklyTotals.previousTotal);
+
+  const cards = [
+    {
+      label: "Best 7d pace",
+      value: peak7 ? formatTrendValue(metric, peak7.value) : "No data yet",
+      meta: peak7 ? `Ended ${formatShortDate(peak7.dateKey)}` : "Keep logging to build a streak.",
+      accent: "accent-a",
+    },
+    {
+      label: "Best 30d pace",
+      value: peak30 ? formatTrendValue(metric, peak30.value) : "No data yet",
+      meta: peak30 ? `Ended ${formatShortDate(peak30.dateKey)}` : "Longer runs unlock after more history.",
+      accent: "accent-b",
+    },
+    {
+      label: "This week",
+      value: weekValue,
+      meta:
+        weeklyTotals.currentTotal === 0 && weeklyTotals.previousTotal === 0
+          ? "No minutes or reps logged yet this week."
+          : `${formatTrendValue(metric, weeklyTotals.currentTotal)} this week • ${formatTrendValue(
+              metric,
+              weeklyTotals.previousTotal
+            )} last week`,
+    },
+    {
+      label: "Best day",
+      value: bestDay ? formatTrendValue(metric, bestDay.value) : "No data yet",
+      meta: bestDay ? formatShortDate(bestDay.dateKey) : "Your biggest day will show here.",
+    },
+    {
+      label: "Movement to revisit",
+      value: staleMovement ? staleMovement.name : "Rotation looks fresh",
+      meta: staleMovement
+        ? `${staleMovement.daysSince} days since last log`
+        : "No stale movements right now.",
+      accent: "accent-c",
+    },
+  ];
+
+  for (const card of cards) {
+    milestoneGrid.appendChild(createMilestoneCard(card));
+  }
+}
+
 function renderTrendStats() {
   trendStats.innerHTML = "";
   const snapshot = ensureTrendBenchmarkSnapshot();
@@ -1924,6 +2075,7 @@ function render() {
   renderDaySummary();
   renderTrendStats();
   renderTrendChart();
+  renderMilestones();
   renderMovementTrends();
   renderStreaksAndHeatmap();
   renderLog();
@@ -2001,6 +2153,7 @@ for (const button of trendMetricButtons) {
     if (metric !== "time" && metric !== "reps") return;
     state.trendMetric = metric;
     renderTrendChart();
+    renderMilestones();
   });
 }
 

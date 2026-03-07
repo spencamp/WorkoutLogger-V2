@@ -6,6 +6,9 @@ import {
   shiftDateKey,
   calculateAdjustedAverage,
   buildRollingAverageSeries,
+  getPeakRollingAverage,
+  getBestDailyTotal,
+  getWeeklyTotals,
 } from "../trend-utils.js";
 
 test("buildDailyTotals pools time and reps by day", () => {
@@ -169,4 +172,63 @@ test("buildRollingAverageSeries keeps unique local day keys across DST fallback"
   } finally {
     process.env.TZ = previousTz;
   }
+});
+
+test("getPeakRollingAverage returns the strongest rolling window", () => {
+  const valuesByDay = {
+    "2026-02-20": { time: 10, reps: 0 },
+    "2026-02-21": { time: 20, reps: 0 },
+    "2026-02-22": { time: 30, reps: 0 },
+  };
+
+  assert.deepEqual(
+    getPeakRollingAverage({
+      valuesByDay,
+      metric: "time",
+      windowDays: 2,
+      firstTrackedDateKey: "2026-02-20",
+      endDateKey: "2026-02-22",
+    }),
+    { dateKey: "2026-02-22", value: 25 }
+  );
+});
+
+test("getBestDailyTotal returns the highest single tracked day", () => {
+  const valuesByDay = {
+    "2026-02-20": { time: 90, reps: 8 },
+    "2026-02-21": { time: 60, reps: 15 },
+    "2026-02-22": { time: 120, reps: 12 },
+  };
+
+  assert.deepEqual(getBestDailyTotal({ valuesByDay, metric: "time" }), {
+    dateKey: "2026-02-22",
+    value: 120,
+  });
+  assert.deepEqual(getBestDailyTotal({ valuesByDay, metric: "reps" }), {
+    dateKey: "2026-02-21",
+    value: 15,
+  });
+});
+
+test("getWeeklyTotals compares the current week against the previous week", () => {
+  const valuesByDay = {
+    "2026-02-15": { time: 10, reps: 0 },
+    "2026-02-16": { time: 10, reps: 0 },
+    "2026-02-22": { time: 15, reps: 0 },
+    "2026-02-23": { time: 20, reps: 0 },
+  };
+
+  assert.deepEqual(
+    getWeeklyTotals({
+      valuesByDay,
+      metric: "time",
+      endDateKey: "2026-02-23",
+    }),
+    {
+      currentWeekStartKey: "2026-02-22",
+      currentTotal: 35,
+      previousWeekStartKey: "2026-02-15",
+      previousTotal: 20,
+    }
+  );
 });
