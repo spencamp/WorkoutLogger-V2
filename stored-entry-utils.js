@@ -27,6 +27,7 @@ export function normalizePersistedEntry(entry) {
         : "";
   const mode = entry?.mode === "time" || entry?.mode === "reps" ? entry.mode : null;
   const amount = Number(entry?.amount);
+  const setAmount = Number(entry?.setAmount);
   const timestamp = Number(entry?.timestamp);
   const movement = normalizeMovementName(entry?.movement);
   const movementType = inferMovementType({
@@ -43,6 +44,7 @@ export function normalizePersistedEntry(entry) {
     id,
     mode,
     amount,
+    setAmount: Number.isFinite(setAmount) && setAmount > 0 ? setAmount : amount,
     timestamp,
     movement,
     movementType,

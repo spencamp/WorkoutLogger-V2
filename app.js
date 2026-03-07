@@ -120,6 +120,7 @@ const closeDatePickerButton = document.getElementById("close-date-picker");
 const dateBanner = document.getElementById("date-banner");
 const dateBannerResetButton = document.getElementById("date-banner-reset");
 const copyBackupButton = document.getElementById("copy-backup");
+const copyLast7DaysButton = document.getElementById("copy-last-7-days");
 const toggleImportPanelButton = document.getElementById("toggle-import-panel");
 const importPanel = document.getElementById("import-panel");
 const importBackupInput = document.getElementById("import-backup-input");
@@ -505,6 +506,7 @@ function saveWorkout() {
     entry.movementType = state.movementType;
     entry.mode = state.mode;
     entry.amount = amount;
+    entry.setAmount = amount;
 
     const mergeTarget = findMatchingDayEntry(entry, entry.id);
     if (mergeTarget) {
@@ -521,6 +523,7 @@ function saveWorkout() {
       movementType: state.movementType,
       mode: state.mode,
       amount,
+      setAmount: amount,
     };
 
     const existing = findMatchingDayEntry(newEntry);
@@ -564,10 +567,14 @@ function duplicateLastEntry() {
   if (!newest) return;
 
   const selectedDateKey = getSelectedDateKey();
+  const repeatAmount =
+    Number.isFinite(newest.setAmount) && newest.setAmount > 0 ? newest.setAmount : newest.amount;
 
   const cloned = {
     ...newest,
     id: createId(),
+    amount: repeatAmount,
+    setAmount: repeatAmount,
     timestamp: buildTimestampForDateKey(selectedDateKey),
   };
 
@@ -583,7 +590,7 @@ function duplicateLastEntry() {
   state.mode = newest.mode;
   state.movementType = newest.movementType;
   state.selectedMovement = newest.movement;
-  state.totals[newest.mode] = newest.amount;
+  state.totals[newest.mode] = repeatAmount;
 
   persistEntries();
   clearTrendBenchmarkSnapshot();
@@ -679,10 +686,14 @@ function quickAddSet(id) {
   if (!entry) return;
 
   const selectedDateKey = getSelectedDateKey();
+  const repeatAmount =
+    Number.isFinite(entry.setAmount) && entry.setAmount > 0 ? entry.setAmount : entry.amount;
 
   const cloned = {
     ...entry,
     id: createId(),
+    amount: repeatAmount,
+    setAmount: repeatAmount,
     timestamp: buildTimestampForDateKey(selectedDateKey),
   };
 
@@ -1052,6 +1063,58 @@ async function copyBackupCode() {
   renderDataControls();
 }
 
+function buildLast7DaysExport() {
+  const entries = [...getEntriesWithinDays(7)].sort((a, b) => a.timestamp - b.timestamp);
+  if (entries.length === 0) return "";
+
+  const totals = summarizeEntries(entries);
+  const todayDateKey = getTodayDateKey();
+  const startDateKey = shiftDateKey(todayDateKey, -6);
+  const lines = [
+    "Workout Logger export (last 7 days)",
+    `Range: ${formatShortDate(startDateKey)} to ${formatShortDate(todayDateKey)}`,
+    `Entries: ${entries.length}`,
+    `Time: ${formatMinutes(totals.timeSeconds)}`,
+    `Reps: ${totals.reps}`,
+    "",
+  ];
+
+  let currentDateKey = "";
+  for (const entry of entries) {
+    const entryDateKey = getDateKey(entry.timestamp);
+    if (entryDateKey !== currentDateKey) {
+      if (currentDateKey) lines.push("");
+      currentDateKey = entryDateKey;
+      lines.push(formatDateKey(entryDateKey));
+    }
+
+    lines.push(`- ${entry.movement} | ${formatAmount(entry.mode, entry.amount)}`);
+  }
+
+  return lines.join("\n");
+}
+
+async function copyLast7Days() {
+  const exportText = buildLast7DaysExport();
+  if (!exportText) {
+    setDataMessage("No workouts in the last 7 days to copy.", "error", 0);
+    announceStatus("No recent workouts to copy.");
+    renderDataControls();
+    return;
+  }
+
+  try {
+    await copyTextToClipboard(exportText);
+    setDataMessage("Last 7 days copied to clipboard.", "success");
+    announceStatus("Last 7 days copied to clipboard.");
+  } catch {
+    setDataMessage("Copy failed. Try again from the installed app.", "error");
+    announceStatus("Last 7 days copy failed.");
+  }
+
+  renderDataControls();
+}
+
 function closeImportPanel({ clearInput = false } = {}) {
   state.importPanelOpen = false;
   if (clearInput) importBackupInput.value = "";
@@ -1342,6 +1405,7 @@ function renderDataControls() {
   importPanel.classList.toggle("hidden", !state.importPanelOpen);
   toggleImportPanelButton.textContent = state.importPanelOpen ? "Hide backup code" : "Paste backup code";
   importBackupButton.disabled = importBackupInput.value.trim().length === 0;
+  copyLast7DaysButton.disabled = getEntriesWithinDays(7).length === 0;
 }
 
 function renderQuickChips() {
@@ -2256,6 +2320,7 @@ closeDatePickerButton.addEventListener("click", () => {
 });
 dateBannerResetButton.addEventListener("click", resetSelectedDateToToday);
 copyBackupButton.addEventListener("click", copyBackupCode);
+copyLast7DaysButton.addEventListener("click", copyLast7Days);
 toggleImportPanelButton.addEventListener("click", () => {
   state.importPanelOpen = !state.importPanelOpen;
   if (!state.importPanelOpen) {

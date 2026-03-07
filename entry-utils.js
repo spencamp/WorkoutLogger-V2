@@ -72,5 +72,8 @@ export function findMatchingDayEntry(entries, referenceEntry, excludeId = null) 
 
 export function mergeEntryAmounts(target, source) {
   target.amount += source.amount;
+  if (Number.isFinite(source.setAmount) && source.setAmount > 0) {
+    target.setAmount = source.setAmount;
+  }
   target.timestamp = Math.max(target.timestamp, source.timestamp);
 }

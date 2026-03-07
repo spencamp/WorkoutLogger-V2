@@ -113,6 +113,7 @@ test("mergeEntryAmounts combines amounts and keeps newest timestamp", () => {
     movementType: "stretches",
     mode: "time",
     amount: 60,
+    setAmount: 30,
   };
   const source = {
     id: "2",
@@ -120,10 +121,37 @@ test("mergeEntryAmounts combines amounts and keeps newest timestamp", () => {
     movement: "dead hang",
     movementType: "stretches",
     mode: "time",
-    amount: 120,
+    amount: 30,
+    setAmount: 30,
   };
 
   mergeEntryAmounts(target, source);
-  assert.equal(target.amount, 180);
+  assert.equal(target.amount, 90);
+  assert.equal(target.setAmount, 30);
   assert.equal(target.timestamp, source.timestamp);
+});
+
+test("mergeEntryAmounts keeps the latest single-set amount for future repeats", () => {
+  const target = {
+    id: "1",
+    timestamp: new Date(2026, 1, 20, 8, 0).getTime(),
+    movement: "Push Up",
+    movementType: "exercises",
+    mode: "reps",
+    amount: 15,
+    setAmount: 5,
+  };
+  const source = {
+    id: "2",
+    timestamp: new Date(2026, 1, 20, 18, 0).getTime(),
+    movement: "Push Up",
+    movementType: "exercises",
+    mode: "reps",
+    amount: 10,
+    setAmount: 10,
+  };
+
+  mergeEntryAmounts(target, source);
+  assert.equal(target.amount, 25);
+  assert.equal(target.setAmount, 10);
 });
