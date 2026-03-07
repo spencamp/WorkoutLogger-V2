@@ -51,6 +51,10 @@ const LOG_FILTER_OPTIONS = [
   { value: "30d", label: "30d" },
   { value: "all", label: "All" },
 ];
+const QUICK_CHIP_VALUES = {
+  time: [30, 60],
+  reps: [5, 10],
+};
 
 const state = {
   mode: "time",
@@ -125,7 +129,8 @@ const composerDateChip = document.getElementById("composer-date-chip");
 const composerEditChip = document.getElementById("composer-edit-chip");
 const clearStickyButton = document.getElementById("clear-sticky");
 const quickRepeatButton = document.getElementById("quick-repeat");
-const quickAddButtons = document.querySelectorAll("[data-quick-mode][data-quick-value]");
+const quickPrimaryButton = document.getElementById("quick-primary");
+const quickSecondaryButton = document.getElementById("quick-secondary");
 const panelButtons = document.querySelectorAll("[data-mobile-view]");
 const appShell = document.getElementById("app-shell");
 const addPanel = document.getElementById("add-panel");
@@ -477,6 +482,8 @@ function saveWorkout() {
   if (!state.selectedMovement || amount <= 0) return;
 
   const selectedDateKey = getSelectedDateKey();
+  const wasEditing = Boolean(state.editingEntryId);
+  const movementToKeep = state.selectedMovement;
   let statusMessage = "Workout added.";
 
   if (state.editingEntryId) {
@@ -520,11 +527,11 @@ function saveWorkout() {
       : `Workout added for ${formatSelectedDateLabel(selectedDateKey)}.`;
   }
 
-  if (state.editingEntryId && state.preEditDateKey) {
+  if (wasEditing && state.preEditDateKey) {
     state.selectedDateKey = state.preEditDateKey;
   }
 
-  state.selectedMovement = null;
+  state.selectedMovement = wasEditing ? null : movementToKeep;
   state.editingEntryId = null;
   state.preEditDateKey = null;
   state.datePickerOpen = false;
@@ -692,6 +699,10 @@ function quickAddAmount(mode, value) {
   if (state.mode !== mode) state.mode = mode;
   state.totals[mode] += value;
   render();
+}
+
+function formatQuickChipLabel(mode, value) {
+  return mode === "time" ? `+${value}s` : `+${value} reps`;
 }
 
 function getEntriesWithinDays(days) {
@@ -1307,6 +1318,19 @@ function renderDataControls() {
   importPanel.classList.toggle("hidden", !state.importPanelOpen);
   toggleImportPanelButton.textContent = state.importPanelOpen ? "Hide backup code" : "Paste backup code";
   importBackupButton.disabled = importBackupInput.value.trim().length === 0;
+}
+
+function renderQuickChips() {
+  const [primaryValue, secondaryValue] = QUICK_CHIP_VALUES[state.mode];
+  const buttons = [
+    { button: quickPrimaryButton, value: primaryValue },
+    { button: quickSecondaryButton, value: secondaryValue },
+  ];
+
+  for (const { button, value } of buttons) {
+    button.textContent = formatQuickChipLabel(state.mode, value);
+    button.setAttribute("aria-label", `Add ${value} ${state.mode === "time" ? "seconds" : "reps"}`);
+  }
 }
 
 function renderComposerState() {
@@ -2070,6 +2094,7 @@ function render() {
   renderCustomManager();
   renderDateControls();
   renderDataControls();
+  renderQuickChips();
   renderComposerState();
   renderUndoBar();
   renderDaySummary();
@@ -2171,14 +2196,12 @@ for (const button of panelButtons) {
   });
 }
 
-for (const button of quickAddButtons) {
-  button.addEventListener("click", () => {
-    const mode = button.dataset.quickMode;
-    const value = Number(button.dataset.quickValue);
-    if (!mode || !Number.isFinite(value)) return;
-    quickAddAmount(mode, value);
-  });
-}
+quickPrimaryButton.addEventListener("click", () => {
+  quickAddAmount(state.mode, QUICK_CHIP_VALUES[state.mode][0]);
+});
+quickSecondaryButton.addEventListener("click", () => {
+  quickAddAmount(state.mode, QUICK_CHIP_VALUES[state.mode][1]);
+});
 
 for (const button of logFilterButtons) {
   button.addEventListener("click", () => {
