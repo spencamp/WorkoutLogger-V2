@@ -1384,7 +1384,6 @@ function renderComposerState() {
       ? "Add workout"
       : `Add for ${formatShortDate(selectedDateKey)}`;
   cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
-  duplicateLastButton.disabled = state.entries.length === 0;
   quickRepeatButton.disabled = state.entries.length === 0;
   clearStickyButton.disabled = !hasDraftSelection();
 }
@@ -2270,7 +2269,6 @@ cancelImportPanelButton.addEventListener("click", () => {
 clearValueButton.addEventListener("click", clearCurrentTotal);
 clearStickyButton.addEventListener("click", clearDraftSelection);
 saveWorkoutButton.addEventListener("click", saveWorkout);
-duplicateLastButton.addEventListener("click", duplicateLastEntry);
 quickRepeatButton.addEventListener("click", duplicateLastEntry);
 cancelEditButton.addEventListener("click", cancelEdit);
 undoDeleteButton.addEventListener("click", undoDelete);
