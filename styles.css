@@ -980,7 +980,7 @@ h3 {
 }
 
 .log-row.just-added .log-row-content {
-  animation: popIn 420ms ease;
+  animation: popIn 320ms ease;
 }
 
 .log-title {
@@ -1008,7 +1008,41 @@ h3 {
 
 .empty-state {
   color: var(--text-muted);
-  padding: 0.4rem 0 0.2rem;
+  margin-top: 0.35rem;
+  border: 1px dashed #30455f;
+  border-radius: 12px;
+  background: #0f1826;
+  padding: 0.8rem 0.75rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.status-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6.6rem + env(safe-area-inset-bottom));
+  z-index: 45;
+  max-width: min(88vw, 420px);
+  border: 1px solid rgba(97, 131, 170, 0.45);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.12)),
+    rgba(17, 27, 41, 0.96);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 0.65rem 0.95rem;
+  transform: translate(-50%, 0.5rem);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.status-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .mobile-composer {
@@ -1151,7 +1185,7 @@ summary:focus-visible {
 @keyframes fadeSlide {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(4px);
   }
 
   to {
@@ -1163,7 +1197,7 @@ summary:focus-visible {
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
 
   to {
@@ -1221,6 +1255,10 @@ summary:focus-visible {
 
   .mobile-composer {
     bottom: calc(3.45rem + env(safe-area-inset-bottom));
+  }
+
+  .status-toast {
+    bottom: calc(9rem + env(safe-area-inset-bottom));
   }
 
   .log-row-content {

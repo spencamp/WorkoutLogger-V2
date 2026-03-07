@@ -79,6 +79,7 @@ const state = {
   dataMessageTimerId: null,
   preEditDateKey: null,
   logFilter: "all",
+  statusToastTimerId: null,
 };
 
 const modeTabs = document.querySelectorAll("[data-mode-tab]");
@@ -93,6 +94,7 @@ const clearValueButton = document.getElementById("clear-value");
 const undoBar = document.getElementById("undo-bar");
 const undoText = document.getElementById("undo-text");
 const undoDeleteButton = document.getElementById("undo-delete");
+const statusToast = document.getElementById("status-toast");
 const trendStats = document.getElementById("trend-stats");
 const trendMetricButtons = document.querySelectorAll("[data-trend-metric]");
 const trendChart = document.getElementById("trend-chart");
@@ -386,6 +388,21 @@ function announceStatus(message) {
   requestAnimationFrame(() => {
     appStatus.textContent = message;
   });
+
+  if (!statusToast) return;
+
+  if (state.statusToastTimerId) {
+    clearTimeout(state.statusToastTimerId);
+    state.statusToastTimerId = null;
+  }
+
+  statusToast.textContent = message;
+  statusToast.classList.add("visible");
+
+  state.statusToastTimerId = setTimeout(() => {
+    statusToast.classList.remove("visible");
+    state.statusToastTimerId = null;
+  }, 2600);
 }
 
 function setDataMessage(message, tone = "muted", autoClearMs = DATA_MESSAGE_CLEAR_DELAY_MS) {
