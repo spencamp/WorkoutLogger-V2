@@ -179,19 +179,28 @@
 
       <section class="panel panel-trends" id="trends-panel">
         <section class="card">
-          <h2>Trends</h2>
+          <div class="section-head trends-top">
+            <div>
+              <h2>Trends</h2>
+              <p class="hint">Momentum, milestones, and consistency at a glance.</p>
+            </div>
+          </div>
 
-          <div class="subcard">
-            <h3>Today's benchmarks</h3>
-            <p class="hint">Frozen from prior days only, so you have steady numbers to beat.</p>
+          <div class="subcard trend-benchmark-card">
+            <div class="section-head">
+              <div>
+                <h3>Today's benchmarks</h3>
+                <p class="hint">Locked from earlier days, so today's target stays honest.</p>
+              </div>
+            </div>
             <div class="stats-grid trend-stats-grid" id="trend-stats"></div>
           </div>
 
-          <div class="subcard">
+          <div class="subcard trend-primary-card">
             <div class="trend-head">
               <div>
                 <h3>Rolling averages</h3>
-                <p class="hint">One rest day is forgiven in each Sunday-to-Saturday week.</p>
+                <p class="hint">One missed day is forgiven in each Sunday-to-Saturday week.</p>
               </div>
               <div class="tabs trend-toggle" aria-label="Trend metric">
                 <button class="tab active" data-trend-metric="time" type="button">Minutes</button>
@@ -213,8 +222,8 @@
             <div class="trend-comparison" id="trend-comparison"></div>
           </div>
 
-          <div class="subcard">
-            <div class="trend-head">
+          <div class="subcard trend-milestone-card">
+            <div class="section-head">
               <div>
                 <h3>Milestones</h3>
                 <p class="hint">Best runs, weekly pace, and what to revisit next.</p>
@@ -223,15 +232,24 @@
             <div class="milestone-grid" id="milestone-grid"></div>
           </div>
 
-          <div class="subcard">
-            <h3>Movement totals (7 days)</h3>
+          <div class="subcard trend-secondary-card">
+            <div class="section-head">
+              <div>
+                <h3>Movement totals (7 days)</h3>
+                <p class="hint">Your busiest movements over the last week.</p>
+              </div>
+            </div>
             <div id="movement-trends"></div>
           </div>
 
-          <div class="subcard">
-            <h3>Streaks</h3>
+          <div class="subcard trend-secondary-card">
+            <div class="section-head">
+              <div>
+                <h3>Streaks</h3>
+                <p class="hint">Consistency cards plus an 8-week activity map.</p>
+              </div>
+            </div>
             <div class="streak-grid" id="streak-grid"></div>
-            <p class="hint">Activity heatmap (last 8 weeks)</p>
             <div class="heatmap" id="heatmap"></div>
           </div>
         </section>

@@ -1575,7 +1575,7 @@ function renderMilestones() {
   if (!firstTrackedDateKey) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "Log a few workouts to unlock milestone cards.";
+    empty.textContent = "Log a few days to unlock milestones.";
     milestoneGrid.appendChild(empty);
     return;
   }
@@ -1652,8 +1652,8 @@ function renderTrendStats() {
   trendStats.innerHTML = "";
   const snapshot = ensureTrendBenchmarkSnapshot();
   const items = [
-    { label: "7d min avg", value: formatTrendValue("time", snapshot.metrics.time.avg7) },
-    { label: "30d min avg", value: formatTrendValue("time", snapshot.metrics.time.avg30) },
+    { label: "7d minutes avg", value: formatTrendValue("time", snapshot.metrics.time.avg7) },
+    { label: "30d minutes avg", value: formatTrendValue("time", snapshot.metrics.time.avg30) },
     { label: "7d reps avg", value: formatTrendValue("reps", snapshot.metrics.reps.avg7) },
     { label: "30d reps avg", value: formatTrendValue("reps", snapshot.metrics.reps.avg30) },
   ];
@@ -1692,7 +1692,7 @@ function renderTrendChart() {
   if (dayKeys.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "Log a few workouts to see your rolling averages.";
+    empty.textContent = "Log a few days to see the curve.";
     trendChart.appendChild(empty);
     trendAxis.style.gridTemplateColumns = "1fr";
     return;
@@ -1794,7 +1794,7 @@ function renderMovementTrends() {
   if (rows.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No entries in the last 7 days yet.";
+    empty.textContent = "Nothing logged in the last 7 days.";
     movementTrends.appendChild(empty);
     return;
   }
