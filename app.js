@@ -1,6 +1,8 @@
 import { WORKOUT_OPTIONS } from "./workout-options.js";
 import {
   getDateKey,
+  parseDateKey,
+  shiftDateKey,
   movementKey,
   normalizeMovementName,
   findMatchingDayEntry as findMatchingDayEntryInList,
@@ -8,9 +10,12 @@ import {
 } from "./entry-utils.js";
 import { buildMovementHistory, selectHighlightedStaleMovements } from "./movement-utils.js";
 import {
+  getEntriesWithinDays as getEntriesWithinDaysFromList,
+  getStreakStats as getStreakStatsFromEntries,
+} from "./stats-utils.js";
+import {
   buildDailyTotals,
   getFirstTrackedDateKey,
-  shiftDateKey,
   calculateAdjustedAverage,
   buildRollingAverageSeries,
 } from "./trend-utils.js";
@@ -18,8 +23,7 @@ import {
 const STORAGE_KEY = "workout-log-v1";
 const CUSTOM_OPTIONS_STORAGE_KEY = "workout-custom-options-v1";
 const ARCHIVED_MOVEMENTS_STORAGE_KEY = "workout-archived-movements-v1";
-const TREND_BENCHMARK_STORAGE_KEY = "workout-trend-benchmarks-v1";
-const MS_DAY = 24 * 60 * 60 * 1000;
+const TREND_BENCHMARK_STORAGE_KEY = "workout-trend-benchmarks-v2";
 const STALE_MOVEMENT_MIN_LOGS = 3;
 const STALE_AFTER_DAYS = 5;
 const STALE_MOVEMENT_LIMIT = 3;
@@ -223,11 +227,6 @@ function startOfDay(dateValue) {
   const date = new Date(dateValue);
   date.setHours(0, 0, 0, 0);
   return date;
-}
-
-function parseDateKey(dateKey) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function formatDateKey(dateKey) {
@@ -521,8 +520,7 @@ function quickAddAmount(mode, value) {
 }
 
 function getEntriesWithinDays(days) {
-  const threshold = startOfDay(Date.now()).getTime() - (days - 1) * MS_DAY;
-  return state.entries.filter((entry) => entry.timestamp >= threshold);
+  return getEntriesWithinDaysFromList(state.entries, days, getDateKey(Date.now()));
 }
 
 function summarizeEntries(entries) {
@@ -648,35 +646,7 @@ function getDailyCounts() {
 }
 
 function getStreakStats() {
-  const counts = getDailyCounts();
-  const keys = Object.keys(counts).sort();
-
-  let currentStreak = 0;
-  const today = startOfDay(Date.now());
-  for (let i = 0; ; i += 1) {
-    const day = new Date(today);
-    day.setDate(today.getDate() - i);
-    const key = getDateKey(day);
-    if (counts[key]) currentStreak += 1;
-    else break;
-  }
-
-  let longestStreak = 0;
-  let running = 0;
-  let previous = null;
-  for (const key of keys) {
-    const current = parseDateKey(key).getTime();
-    if (previous !== null && current - previous === MS_DAY) running += 1;
-    else running = 1;
-    if (running > longestStreak) longestStreak = running;
-    previous = current;
-  }
-
-  return {
-    currentStreak,
-    longestStreak,
-    activeDays: keys.length,
-  };
+  return getStreakStatsFromEntries(state.entries, getDateKey(Date.now()));
 }
 
 function groupedEntries(entries) {
@@ -1277,7 +1247,7 @@ function renderMovementTrends() {
 
     const amount = document.createElement("p");
     amount.className = "trend-row-meta";
-    amount.textContent = `${Math.round(totals.timeSeconds / 60)} min | ${totals.reps} reps`;
+    amount.textContent = `${formatAmount("time", totals.timeSeconds)} | ${totals.reps} reps`;
 
     row.append(name, amount);
     movementTrends.appendChild(row);

@@ -1,10 +1,12 @@
-const CACHE_NAME = "workout-logger-v4";
+const CACHE_NAME = "workout-logger-v5";
 const APP_SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./entry-utils.js",
   "./movement-utils.js",
+  "./stats-utils.js",
   "./trend-utils.js",
   "./workout-options.js",
   "./manifest.webmanifest",

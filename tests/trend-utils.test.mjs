@@ -141,3 +141,32 @@ test("buildRollingAverageSeries returns a point for each displayed day", () => {
     { dateKey: "2026-02-22", value: 20 },
   ]);
 });
+
+test("buildRollingAverageSeries keeps unique local day keys across DST fallback", () => {
+  const previousTz = process.env.TZ;
+  process.env.TZ = "America/Los_Angeles";
+
+  try {
+    const valuesByDay = {
+      "2026-10-31": { time: 10, reps: 0 },
+      "2026-11-01": { time: 20, reps: 0 },
+      "2026-11-02": { time: 30, reps: 0 },
+    };
+
+    const series = buildRollingAverageSeries({
+      startDateKey: "2026-10-31",
+      endDateKey: "2026-11-02",
+      valuesByDay,
+      metric: "time",
+      windowDays: 1,
+      firstTrackedDateKey: "2026-10-31",
+    });
+
+    assert.deepEqual(
+      series.map((point) => point.dateKey),
+      ["2026-10-31", "2026-11-01", "2026-11-02"]
+    );
+  } finally {
+    process.env.TZ = previousTz;
+  }
+});

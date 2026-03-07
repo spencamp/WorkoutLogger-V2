@@ -1,25 +1,4 @@
-import { getDateKey } from "./entry-utils.js";
-
-const MS_DAY = 24 * 60 * 60 * 1000;
-
-function parseDateKey(dateKey) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function getDateRangeKeys(startDateKey, endDateKey) {
-  if (!startDateKey || !endDateKey || startDateKey > endDateKey) return [];
-
-  const keys = [];
-  const endTime = parseDateKey(endDateKey).getTime();
-
-  for (let cursor = parseDateKey(startDateKey); cursor.getTime() <= endTime; ) {
-    keys.push(getDateKey(cursor));
-    cursor = new Date(cursor.getTime() + MS_DAY);
-  }
-
-  return keys;
-}
+import { getDateKey, getDateRangeKeys, parseDateKey, shiftDateKey as shiftEntryDateKey } from "./entry-utils.js";
 
 function getWeekBucketKey(dateKey) {
   const date = parseDateKey(dateKey);
@@ -58,9 +37,7 @@ export function getFirstTrackedDateKey(entries) {
 }
 
 export function shiftDateKey(dateKey, dayDelta) {
-  const date = parseDateKey(dateKey);
-  date.setDate(date.getDate() + dayDelta);
-  return getDateKey(date);
+  return shiftEntryDateKey(dateKey, dayDelta);
 }
 
 export function calculateAdjustedAverage({
