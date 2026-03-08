@@ -428,6 +428,39 @@ function getCurrentAmount() {
   return state.totals[state.mode];
 }
 
+function getEditingEntry() {
+  if (!state.editingEntryId) return null;
+  return state.entries.find((entry) => entry.id === state.editingEntryId) || null;
+}
+
+function isEditingPastEntry() {
+  const editingEntry = getEditingEntry();
+  if (!editingEntry) return false;
+  return getDateKey(editingEntry.timestamp) !== getTodayDateKey();
+}
+
+function getLatestEntryForMovement(type, movementName) {
+  const targetKey = movementKey(movementName);
+  if (!targetKey) return null;
+
+  let latestEntry = null;
+
+  for (const entry of state.entries) {
+    if (entry.movementType !== type) continue;
+    if (movementKey(entry.movement) !== targetKey) continue;
+    if (!latestEntry || entry.timestamp > latestEntry.timestamp) {
+      latestEntry = entry;
+    }
+  }
+
+  return latestEntry;
+}
+
+function syncModeToMovement(type, movementName) {
+  const latestEntry = getLatestEntryForMovement(type, movementName);
+  if (latestEntry) state.mode = latestEntry.mode;
+}
+
 function resetSelectionForMode(mode) {
   state.totals[mode] = 0;
 }
@@ -485,6 +518,12 @@ function clearDraftSelection() {
   state.selectedMovement = null;
   state.editingEntryId = null;
   state.preEditDateKey = null;
+  render();
+}
+
+function selectMovement(movement) {
+  state.selectedMovement = movement;
+  syncModeToMovement(state.movementType, movement);
   render();
 }
 
@@ -1233,10 +1272,7 @@ function renderMovementButtons() {
     if (highlightedStaleKeys.has(movementKey(movement))) button.classList.add("stale");
     button.textContent = movement;
     button.setAttribute("aria-pressed", String(state.selectedMovement === movement));
-    button.addEventListener("click", () => {
-      state.selectedMovement = movement;
-      render();
-    });
+    button.addEventListener("click", () => selectMovement(movement));
     movementGrid.appendChild(button);
   }
   animateSwap(movementGrid);
@@ -1454,7 +1490,7 @@ function renderComposerState() {
     : isSelectedDateToday()
       ? "Add workout"
       : `Add for ${formatShortDate(selectedDateKey)}`;
-  cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
+  cancelEditButton.classList.toggle("hidden", !isEditingPastEntry());
   quickRepeatButton.disabled = state.entries.length === 0;
   clearStickyButton.disabled = !hasDraftSelection();
 }

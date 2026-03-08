@@ -1,4 +1,4 @@
-const CACHE_NAME = "workout-logger-v8";
+const CACHE_NAME = "workout-logger-v9";
 const APP_SHELL_FILES = [
   "./",
   "./index.html",

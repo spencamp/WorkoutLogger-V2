@@ -264,22 +264,30 @@ h3 {
   padding-top: 0.75rem;
 }
 
-#manage-movements summary {
+summary {
+  font-family: inherit;
+}
+
+#manage-movements summary,
+#manage-data summary {
   cursor: pointer;
   font-weight: 700;
   list-style: none;
 }
 
-#manage-movements summary::-webkit-details-marker {
+#manage-movements summary::-webkit-details-marker,
+#manage-data summary::-webkit-details-marker {
   display: none;
 }
 
-#manage-movements summary::after {
+#manage-movements summary::after,
+#manage-data summary::after {
   content: " +";
   color: var(--accent-2);
 }
 
-#manage-movements[open] summary::after {
+#manage-movements[open] summary::after,
+#manage-data[open] summary::after {
   content: " -";
 }
 
