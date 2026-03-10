@@ -81,6 +81,7 @@ const state = {
   preEditDateKey: null,
   logFilter: "all",
   statusToastTimerId: null,
+  lastLoggedWorkout: null,
 };
 
 const modeTabs = document.querySelectorAll("[data-mode-tab]");
@@ -546,6 +547,7 @@ function saveWorkout() {
     entry.mode = state.mode;
     entry.amount = amount;
     entry.setAmount = amount;
+    rememberLoggedWorkout(entry);
 
     const mergeTarget = findMatchingDayEntry(entry, entry.id);
     if (mergeTarget) {
@@ -564,6 +566,7 @@ function saveWorkout() {
       amount,
       setAmount: amount,
     };
+    rememberLoggedWorkout(newEntry);
 
     const existing = findMatchingDayEntry(newEntry);
     if (existing) {
@@ -601,19 +604,53 @@ function getNewestEntry() {
   );
 }
 
+function buildLoggedWorkoutSnapshot(entry) {
+  if (!entry) return null;
+
+  const amount =
+    Number.isFinite(entry.setAmount) && entry.setAmount > 0 ? entry.setAmount : entry.amount;
+  if (!entry.movement || !entry.movementType || !entry.mode || !Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  return {
+    movement: entry.movement,
+    movementType: entry.movementType,
+    mode: entry.mode,
+    amount,
+    timestamp: entry.timestamp,
+  };
+}
+
+function rememberLoggedWorkout(entry) {
+  state.lastLoggedWorkout = buildLoggedWorkoutSnapshot(entry);
+}
+
+function syncLastLoggedWorkoutFromEntries() {
+  state.lastLoggedWorkout = buildLoggedWorkoutSnapshot(getNewestEntry());
+}
+
+function getRepeatSource() {
+  if (!state.lastLoggedWorkout) {
+    syncLastLoggedWorkoutFromEntries();
+  }
+
+  return state.lastLoggedWorkout;
+}
+
 function duplicateLastEntry() {
-  const newest = getNewestEntry();
-  if (!newest) return;
+  const source = getRepeatSource();
+  if (!source) return;
 
   const selectedDateKey = getSelectedDateKey();
-  const repeatAmount =
-    Number.isFinite(newest.setAmount) && newest.setAmount > 0 ? newest.setAmount : newest.amount;
 
   const cloned = {
-    ...newest,
+    movement: source.movement,
+    movementType: source.movementType,
+    mode: source.mode,
     id: createId(),
-    amount: repeatAmount,
-    setAmount: repeatAmount,
+    amount: source.amount,
+    setAmount: source.amount,
     timestamp: buildTimestampForDateKey(selectedDateKey),
   };
 
@@ -626,17 +663,18 @@ function duplicateLastEntry() {
     queueAddedHighlight(cloned.id);
   }
 
-  state.mode = newest.mode;
-  state.movementType = newest.movementType;
-  state.selectedMovement = newest.movement;
-  state.totals[newest.mode] = repeatAmount;
+  rememberLoggedWorkout(cloned);
+  state.mode = source.mode;
+  state.movementType = source.movementType;
+  state.selectedMovement = source.movement;
+  state.totals[source.mode] = source.amount;
 
   persistEntries();
   clearTrendBenchmarkSnapshot();
   announceStatus(
     isSelectedDateToday()
-      ? `Repeated ${newest.movement}.`
-      : `Repeated ${newest.movement} for ${formatSelectedDateLabel(selectedDateKey)}.`
+      ? `Repeated ${source.movement}.`
+      : `Repeated ${source.movement} for ${formatSelectedDateLabel(selectedDateKey)}.`
   );
   render();
 }
@@ -693,6 +731,7 @@ function deleteEntry(id) {
   const [removed] = state.entries.splice(index, 1);
   if (state.editingEntryId === id) state.editingEntryId = null;
   setUndoEntry(removed, index);
+  syncLastLoggedWorkoutFromEntries();
   persistEntries();
   clearTrendBenchmarkSnapshot();
   announceStatus(`Deleted ${removed.movement}.`);
@@ -714,6 +753,7 @@ function undoDelete() {
   state.lastDeleted = null;
   if (state.undoTimerId) clearTimeout(state.undoTimerId);
   state.undoTimerId = null;
+  syncLastLoggedWorkoutFromEntries();
   persistEntries();
   clearTrendBenchmarkSnapshot();
   announceStatus(`Restored ${entry.movement}.`);
@@ -745,6 +785,7 @@ function quickAddSet(id) {
     queueAddedHighlight(cloned.id);
   }
 
+  rememberLoggedWorkout(cloned);
   persistEntries();
   clearTrendBenchmarkSnapshot();
   announceStatus(
@@ -1490,7 +1531,7 @@ function renderComposerState() {
     : isSelectedDateToday()
       ? "Add workout"
       : `Add for ${formatShortDate(selectedDateKey)}`;
-  cancelEditButton.classList.toggle("hidden", !isEditingPastEntry());
+  cancelEditButton.classList.toggle("hidden", !state.editingEntryId);
   quickRepeatButton.disabled = state.entries.length === 0;
   clearStickyButton.disabled = !hasDraftSelection();
 }
@@ -2392,4 +2433,5 @@ window.addEventListener("resize", renderMobilePanels);
 registerServiceWorker();
 setupInstallPrompt();
 setupDoubleTapZoomGuard();
+syncLastLoggedWorkoutFromEntries();
 render();
